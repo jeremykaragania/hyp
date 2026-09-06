@@ -17,7 +17,7 @@ pub unsafe extern "C" fn memcpy(dest: *mut c_void, src: *const c_void, n: usize)
         count -= 1;
     }
 
-    return dest;
+    dest
 }
 
 #[unsafe(no_mangle)]
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn memmove(dest: *mut c_void, src: *const c_void, n: usize
         }
     }
 
-    return dest;
+    dest
 }
 
 #[unsafe(no_mangle)]
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void
         count -= 1;
     }
 
-    return s;
+    s
 }
 
 #[unsafe(no_mangle)]
@@ -93,12 +93,12 @@ pub unsafe extern "C" fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) 
         count -= 1;
     }
 
-    return res.into();
+    res.into()
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bcmp(s1: *const c_void, s2: *const c_void, n: usize) -> i32 {
-    return unsafe { memcmp(s1, s2, n) };
+    unsafe { memcmp(s1, s2, n) }
 }
 
 #[unsafe(no_mangle)]
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn strlen(s: *const u8) -> usize {
         }
     }
 
-    return unsafe { sc.offset_from_unsigned(s) };
+    unsafe { sc.offset_from_unsigned(s) }
 }
 
 #[unsafe(no_mangle)]
