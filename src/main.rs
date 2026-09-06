@@ -2,6 +2,7 @@
 #![no_main]
 
 mod builtins;
+mod mmu;
 
 use core::panic::PanicInfo;
 
