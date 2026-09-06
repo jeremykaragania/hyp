@@ -4,6 +4,6 @@ target = "aarch64-unknown-linux-gnu"
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-none-linux-gnu-gcc"
 rustflags = [
-    "-C", "link-args=-static -ffreestanding -nostdlib -Wl,--build-id=none,--gc-keep-exported"
+    "-C", "link-args=-static -ffreestanding -nostdlib -Wl,--build-id=none"
 ]
 runner = "qemu-system-aarch64 -s -S -M virt,virtualization=on -cpu cortex-a76 -m 4G -nographic -kernel"
