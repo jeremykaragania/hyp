@@ -1,4 +1,4 @@
-use crate::mmu::{
+use crate::mm::table::{
     create_block_entry, create_table_entry, entry_addr, level_entry_size, level_shift,
 };
 

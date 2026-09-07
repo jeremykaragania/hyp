@@ -3,7 +3,7 @@
 
 mod boot;
 mod builtins;
-mod mmu;
+mod mm;
 
 use core::panic::PanicInfo;
 
