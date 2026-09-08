@@ -1,6 +1,9 @@
 .section .head.text, "ax"
 
 .macro boot_el level
+  ldr x0, =vector_table_el\level
+  msr vbar_el\level, x0
+
   // TODO: Add high virtual address space translation table.
   ldr x0, =init_trans_table_begin
   msr ttbr0_el\level, x0

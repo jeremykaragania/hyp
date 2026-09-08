@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn main() {
-    const ASM: &[&str] = &["asm/head.S"];
+    const ASM: &[&str] = &["asm/head.S", "asm/vector_tables.S"];
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let cc = env::var("RUSTC_LINKER").unwrap();
     let linker_script = Path::new("linker.ld").canonicalize().unwrap();

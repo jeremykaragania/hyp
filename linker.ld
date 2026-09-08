@@ -15,6 +15,10 @@ SECTIONS {
     *(.text .text.*)
   }
 
+  .vector_tables ALIGN(4K) : {
+    *(.vector_tables)
+  }
+
   .init.rodata ALIGN(4K) : {
     data_begin = .;
     *(.init.rodata)
@@ -39,10 +43,6 @@ SECTIONS {
   .bss ALIGN(4K) : {
     *(.bss .bss.*)
     *(COMMON)
-  }
-
-  .vector_tables ALIGN(4K) : {
-    *(.vector_tables)
   }
 
   . = ALIGN(4K);
