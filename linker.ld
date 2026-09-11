@@ -1,7 +1,8 @@
 ENTRY(_start)
 
 SECTIONS {
-  . = 0x40000000 + 2M;
+  ram_begin = 0x40000000;
+  . = ram_begin + 2M;
 
   image_begin = .;
 
