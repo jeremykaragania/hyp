@@ -21,8 +21,9 @@ impl<T> Spinlock<T> {
         }
     }
 
-    pub fn lock(&self) {
+    pub fn lock(&self) -> SpinlockGuard<'_, T> {
         unsafe { spinlock_lock(self.locked.get()) }
+        SpinlockGuard { lock: self }
     }
 
     pub unsafe fn unlock(&self) {
