@@ -61,7 +61,8 @@ impl Descriptor {
 
     pub fn block(addr: u64, level: u8, attrs: &MemoryAttributes) -> Self {
         let kind_bits = { if level == 3 { 0b11 } else { 0b01 } };
-        // AP[1] honestly seems kind of useless. We have to translation tables for a reason right?
+        // AP[1] honestly seems kind of useless. We have two translation tables
+        // for a reason right?
         let permission_bits = ((attrs.permissions == AccessPermissions::ReadOnly) as u64) << 2 | 1;
         let xn_bit = (attrs.execution == Execution::NonExecutable) as u64;
         let execution_bits = xn_bit << 54 | xn_bit << 53;
