@@ -4,6 +4,7 @@
 mod boot;
 mod builtins;
 mod mm;
+mod sync;
 
 use core::panic::PanicInfo;
 
