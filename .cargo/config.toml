@@ -4,6 +4,7 @@ target = "aarch64-unknown-linux-gnu"
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-none-linux-gnu-gcc"
 rustflags = [
+    "-C", "target-feature=+strict-align",
     "-C", "relocation-model=static",
     "-C", "link-args=-static -ffreestanding -nostdlib -Wl,--build-id=none"
 ]
