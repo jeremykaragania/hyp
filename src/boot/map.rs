@@ -1,6 +1,7 @@
 use crate::mm::table::{
     AccessPermissions, Descriptor, Execution, MemoryAttributes, level_entry_size, level_shift,
 };
+use crate::mm::table_alloc::alloc_table;
 
 const TEXT_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
     permissions: AccessPermissions::ReadOnly,
@@ -25,7 +26,7 @@ unsafe fn get_or_create_table(
     let entry = unsafe { *desc };
 
     if entry.bits() == 0 {
-        let next_table = unsafe { table.add(512) };
+        let next_table = &mut alloc_table().unwrap().0 as *mut Descriptor;
         unsafe {
             *desc = Descriptor::table(next_table as u64).into();
         }

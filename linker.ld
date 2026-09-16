@@ -42,14 +42,10 @@ SECTIONS {
   }
 
   .bss ALIGN(4K) : {
+    *(.trans_table_pool)
     *(.bss .bss.*)
     *(COMMON)
   }
-
-  . = ALIGN(4K);
-  init_trans_table_begin = .;
-  . += 64 * 4K;
-  init_trans_table_end = .;
 
   . = ALIGN(4K);
   init_stack_begin = .;

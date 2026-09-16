@@ -3,6 +3,8 @@ const SZ_1GB: usize = 0x40000000;
 const SZ_2MB: usize = 0x200000;
 const SZ_4KB: usize = 0x1000;
 
+pub const TABLE_ENTRY_COUNT: usize = 512;
+
 pub enum DescriptorKind {
     Invalid,
     Table,
@@ -27,7 +29,9 @@ pub struct MemoryAttributes {
 }
 
 #[derive(Clone, Copy)]
-pub struct Descriptor(u64);
+pub struct Descriptor(pub u64);
+
+pub struct Table(pub [Descriptor; TABLE_ENTRY_COUNT]);
 
 impl Descriptor {
     pub fn bits(self) -> u64 {

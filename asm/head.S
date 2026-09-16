@@ -5,7 +5,7 @@
   msr vbar_el\level, x0
 
   // TODO: Add high virtual address space translation table.
-  ldr x0, =init_trans_table_begin
+  ldr x0, =TABLE_POOL
   msr ttbr0_el\level, x0
 
   /*
@@ -43,7 +43,8 @@ boot:
   ldr x0, =init_stack_end
   mov sp, x0
 
-  ldr x0, =init_trans_table_begin
+  bl init_table_alloc
+  ldr x0, =TABLE_POOL
   bl create_init_mapping
 
   mrs x0, currentel
