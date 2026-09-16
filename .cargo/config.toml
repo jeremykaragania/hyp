@@ -8,7 +8,7 @@ rustflags = [
     "-C", "relocation-model=static",
     "-C", "link-args=-static -ffreestanding -nostdlib -Wl,--build-id=none"
 ]
-runner = "qemu-system-aarch64 -s -S -M virt,virtualization=on -cpu cortex-a76 -m 4G -nographic -kernel"
+runner = "qemu-system-aarch64 -s -S -M virt,virtualization=on -cpu cortex-a76 -smp 4 -m 4G -nographic -kernel"
 
 [unstable]
 build-std = ["core"]
