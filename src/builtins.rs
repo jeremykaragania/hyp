@@ -45,10 +45,10 @@ pub unsafe extern "C" fn memmove(dest: *mut c_void, src: *const c_void, n: usize
 
         while count > 0 {
             unsafe {
-                *tmp = *s;
-
                 tmp = tmp.sub(1);
                 s = s.sub(1);
+
+                *tmp = *s;
             }
 
             count -= 1;
@@ -76,14 +76,14 @@ pub unsafe extern "C" fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> i32 {
-    let mut res = 0;
+    let mut res: i32 = 0;
     let su1 = s1 as *const u8;
     let su2 = s2 as *const u8;
     let mut count = n;
 
     while count > 0 {
         unsafe {
-            res = *su1 - *su2;
+            res = *su1 as i32 - *su2 as i32;
         }
 
         if res != 0 {
