@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod align;
 mod boot;
 mod builtins;
 mod mm;
