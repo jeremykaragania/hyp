@@ -77,8 +77,8 @@ pub unsafe extern "C" fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) -> i32 {
     let mut res: i32 = 0;
-    let su1 = s1 as *const u8;
-    let su2 = s2 as *const u8;
+    let mut su1 = s1 as *const u8;
+    let mut su2 = s2 as *const u8;
     let mut count = n;
 
     while count > 0 {
@@ -88,6 +88,11 @@ pub unsafe extern "C" fn memcmp(s1: *const c_void, s2: *const c_void, n: usize) 
 
         if res != 0 {
             break;
+        }
+
+        unsafe {
+            su1 = su1.add(1);
+            su2 = su2.add(1);
         }
 
         count -= 1;
