@@ -1,6 +1,7 @@
 use crate::align::align_up;
 use core::ffi::CStr;
-use core::mem::size_of_val;
+use core::mem::{size_of, size_of_val};
+use core::slice::from_raw_parts;
 
 unsafe extern "C" {
     static ram_begin: Header;
@@ -13,8 +14,17 @@ const FDT_PROP: u32 = 0x3;
 const FDT_NOP: u32 = 0x4;
 const FDT_END: u32 = 0x9;
 
+#[derive(PartialEq, Eq)]
+enum FDTToken<'a> {
+    BeginNode(&'a str),
+    Prop { nameoff: u32, value: &'a [u8] },
+    EndNode,
+    Nop,
+    End,
+}
+
 #[repr(C)]
-pub struct Header {
+struct Header {
     magic: u32,
     totalsize: u32,
     off_dt_struct: u32,
@@ -27,112 +37,184 @@ pub struct Header {
     size_dt_struct: u32,
 }
 
-#[repr(C)]
-struct ReserveEntry {
-    address: u64,
-    size: u64,
+struct FDTStream<'a> {
+    data: &'a [u8],
+    offset: usize,
 }
 
-#[repr(C)]
-struct PropertyData {
-    len: u32,
-    nameoff: u32,
-}
-
-pub fn parse_fdt() -> Result<(), ()> {
-    let header: &Header = unsafe { &*(&ram_begin as *const Header) };
-
-    if u32::from_be(header.magic) != FDT_MAGIC {
-        return Err(());
-    }
-
-    let res = parse_fdt_reservation_block(header);
-
-    if res.is_err() {
-        return res;
-    }
-
-    let res = parse_fdt_structure_block(header);
-
-    if res.is_err() {
-        return res;
-    }
-
-    Ok(())
-}
-
-pub fn parse_fdt_reservation_block(header: &Header) -> Result<(), ()> {
-    let header_ptr = header as *const Header;
-    unsafe {
-        let mut re: *const ReserveEntry = (header_ptr as *const u8)
-            .add(u32::from_be(header.off_mem_rsvmap) as usize)
-            as *const ReserveEntry;
-
-        while (*re).address != 0 && (*re).size != 0 {
-            re = re.add(1);
+impl<'a> FDTStream<'a> {
+    fn new(data: &'a [u8], offset: usize) -> Self {
+        Self {
+            data: data,
+            offset: offset,
         }
     }
 
-    Ok(())
-}
+    fn parse_u32(&mut self) -> Result<u32, ()> {
+        let next_offset = self.offset + size_of::<u32>();
 
-pub fn parse_fdt_structure_block(header: &Header) -> Result<(), ()> {
-    let header_ptr = header as *const Header;
-    let base = unsafe { (header_ptr as *mut u8).add(u32::from_be(header.off_dt_struct) as usize) };
-    let mut i = 0;
-    let mut token: u32;
-    let mut node_name_bytes: [u8; 32] = [0; 32];
-    let mut node_name: &str = "";
+        if next_offset > self.data.len() {
+            return Err(());
+        }
 
-    loop {
-        token = unsafe { u32::from_be(*(base.add(i) as *const u32)) };
-        i += size_of_val(&token);
+        let ret = u32::from_be_bytes(self.data[self.offset..next_offset].try_into().unwrap());
+        self.offset = next_offset;
+        Ok(ret)
+    }
 
-        match token {
+    fn parse_u64(&mut self) -> Result<u64, ()> {
+        let next_offset = self.offset + size_of::<u64>();
+
+        if next_offset > self.data.len() {
+            return Err(());
+        }
+
+        let ret = u64::from_be_bytes(self.data[self.offset..next_offset].try_into().unwrap());
+        self.offset = next_offset;
+        Ok(ret)
+    }
+
+    fn next_token(&mut self) -> Result<FDTToken<'a>, ()> {
+        let token_type = self.parse_u32()?;
+
+        match token_type {
             FDT_BEGIN_NODE => {
-                let ptr = unsafe { base.add(i) };
-                let c_str = unsafe { CStr::from_ptr(ptr) };
-                let name = c_str.to_bytes_with_nul();
-
-                i += name.len();
-                node_name_bytes[..name.len()].copy_from_slice(name);
-
-                if let Some(unit_address) = name.iter().position(|&c| c == b'@') {
-                    node_name_bytes[unit_address] = 0;
-                }
-
-                node_name = CStr::from_bytes_until_nul(&node_name_bytes)
+                let name = CStr::from_bytes_until_nul(&self.data[self.offset..])
                     .unwrap()
                     .to_str()
                     .unwrap();
 
-                i = align_up(i as u64, 4) as usize;
+                self.offset = align_up((self.offset + name.len() + 1) as u64, 4) as usize;
+                Ok(FDTToken::BeginNode(name))
             }
-            FDT_END_NODE => {}
+            FDT_END_NODE => Ok(FDTToken::EndNode),
             FDT_PROP => {
-                let ptr = unsafe { base.add(i) };
-                let data: &PropertyData = unsafe { &*(ptr as *const PropertyData) };
-                let data_len = u32::from_be(data.len);
-                let data_nameoff = u32::from_be(data.nameoff);
+                let len = self.parse_u32()? as usize;
+                let nameoff = self.parse_u32()?;
 
-                i += size_of_val(data);
+                let value = &self.data[self.offset..self.offset + len];
 
-                let ptr = unsafe {
-                    (header_ptr as *const u8)
-                        .add((u32::from_be(header.off_dt_strings) + data_nameoff) as usize)
-                };
-
-                let c_str = unsafe { CStr::from_ptr(ptr) };
-                let property_name = c_str.to_str().unwrap();
-
-                i += data_len as usize;
-                i = align_up(i as u64, 4) as usize;
+                self.offset = align_up((self.offset + len) as u64, 4) as usize;
+                Ok(FDTToken::Prop { nameoff, value })
             }
-            FDT_NOP => {}
-            FDT_END => return Ok(()),
-            _ => {
-                return Err(());
+            FDT_NOP => {
+                self.offset = align_up((self.offset + size_of::<u32>()) as u64, 4) as usize;
+                Ok(FDTToken::Nop)
             }
+            FDT_END => Ok(FDTToken::End),
+            _ => Err(()),
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct FDTParseContext {
+    depth: usize,
+}
+
+impl Default for FDTParseContext {
+    fn default() -> Self {
+        Self { depth: 0 }
+    }
+}
+
+struct Devicetree<'a> {
+    data: &'a [u8],
+    struct_offset: usize,
+    strings_offset: usize,
+    reserve_offset: usize,
+}
+
+impl<'a> Devicetree<'a> {
+    pub fn new(header: &Header) -> Result<Self, ()> {
+        if u32::from_be(header.magic) != FDT_MAGIC {
+            return Err(());
+        }
+
+        let totalsize = u32::from_be(header.totalsize) as usize;
+        let data = unsafe { from_raw_parts(header as *const Header as *const u8, totalsize) };
+        let struct_offset = u32::from_be(header.off_dt_struct) as usize;
+        let strings_offset = u32::from_be(header.off_dt_strings) as usize;
+        let reserve_offset = u32::from_be(header.off_mem_rsvmap) as usize;
+
+        if struct_offset >= totalsize || strings_offset >= totalsize {
+            return Err(());
+        }
+
+        Ok(Self {
+            data: data,
+            struct_offset: struct_offset,
+            strings_offset: strings_offset,
+            reserve_offset: reserve_offset,
+        })
+    }
+
+    fn get_string(&self, offset: u32) -> &'a str {
+        CStr::from_bytes_until_nul(&self.data[self.strings_offset + offset as usize..])
+            .unwrap()
+            .to_str()
+            .unwrap()
+    }
+
+    pub fn parse(&self) -> Result<(), ()> {
+        self.parse_reservation_block()?;
+        self.parse_structure_block()
+    }
+
+    fn parse_structure_block(&self) -> Result<(), ()> {
+        let mut stream = FDTStream::new(self.data, self.struct_offset);
+        let context = FDTParseContext::default();
+
+        self.parse_node(&mut stream, context)
+    }
+
+    fn parse_reservation_block(&self) -> Result<(), ()> {
+        let mut stream = FDTStream::new(self.data, self.reserve_offset);
+
+        loop {
+            let address = stream.parse_u64()?;
+            let size = stream.parse_u64()?;
+
+            if address == 0 || size == 0 {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn parse_node(&self, stream: &mut FDTStream<'a>, context: FDTParseContext) -> Result<(), ()> {
+        let mut next_context = FDTParseContext {
+            depth: context.depth + 1,
+        };
+
+        while let Ok(token) = stream.next_token() {
+            match token {
+                FDTToken::BeginNode(name) => {
+                    self.parse_node(stream, next_context)?;
+                }
+                FDTToken::Prop { nameoff, value } => {
+                    let name = self.get_string(nameoff);
+                }
+                FDTToken::EndNode => {
+                    return Ok(());
+                }
+                FDTToken::Nop => {
+                    return Ok(());
+                }
+                FDTToken::End => {
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(())
+    }
+}
+
+pub fn parse_fdt() -> Result<(), ()> {
+    let header: &Header = unsafe { &*(&ram_begin as *const Header) };
+    let dt = Devicetree::new(header)?;
+
+    dt.parse()
 }
