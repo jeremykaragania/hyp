@@ -4,6 +4,7 @@
 mod align;
 mod boot;
 mod builtins;
+mod drivers;
 mod mm;
 mod sync;
 
