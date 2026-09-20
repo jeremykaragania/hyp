@@ -13,6 +13,7 @@ const DATA_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
 };
 
 unsafe extern "C" {
+    static ram_begin: u8;
     static text_begin: u8;
     static data_begin: u8;
     static data_end: u8;
@@ -82,6 +83,10 @@ pub unsafe fn map_region(
 #[unsafe(no_mangle)]
 pub extern "C" fn create_init_mapping(table: *mut u64) {
     unsafe {
+        let begin = &ram_begin as *const u8 as u64;
+        let end = &text_begin as *const u8 as u64;
+        map_region(table as *mut Descriptor, begin, end, &DATA_MEM_ATTRIBUTES);
+
         let begin = &text_begin as *const u8 as u64;
         let end = &data_begin as *const u8 as u64;
         map_region(table as *mut Descriptor, begin, end, &TEXT_MEM_ATTRIBUTES);
