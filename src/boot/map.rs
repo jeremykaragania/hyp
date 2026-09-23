@@ -94,5 +94,10 @@ pub extern "C" fn create_init_mapping(table: *mut u64) {
         let begin = &data_begin as *const u8 as u64;
         let end = &data_end as *const u8 as u64;
         map_region(table as *mut Descriptor, begin, end, &DATA_MEM_ATTRIBUTES);
+
+        // TODO: Remove when we parse the DTB.
+        let begin = 0x9000000;
+        let end = begin + 0x1000;
+        map_region(table as *mut Descriptor, begin, end, &DATA_MEM_ATTRIBUTES);
     }
 }
