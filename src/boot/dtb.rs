@@ -7,6 +7,8 @@ unsafe extern "C" {
     static ram_begin: Header;
 }
 
+const FDT_MAX_DEPTH: usize = 64;
+
 const FDT_MAGIC: u32 = 0xd00dfeed;
 const FDT_BEGIN_NODE: u32 = 0x1;
 const FDT_END_NODE: u32 = 0x2;
@@ -184,6 +186,10 @@ impl<'a> Devicetree<'a> {
     }
 
     fn parse_node(&self, stream: &mut FDTStream<'a>, context: FDTParseContext) -> Result<(), ()> {
+        if context.depth > FDT_MAX_DEPTH {
+            return Err(());
+        }
+
         let mut next_context = FDTParseContext {
             depth: context.depth + 1,
         };
