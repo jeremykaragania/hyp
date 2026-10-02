@@ -1,6 +1,6 @@
 use crate::align::align_up;
 use core::ffi::CStr;
-use core::mem::{size_of, size_of_val};
+use core::mem::size_of;
 use core::slice::from_raw_parts;
 
 unsafe extern "C" {
@@ -110,13 +110,21 @@ impl<'a> FDTStream<'a> {
 }
 
 #[derive(Clone, Copy)]
-struct FDTParseContext {
+struct FDTParseContext<'a> {
     depth: usize,
+    address_cells: u32,
+    size_cells: u32,
+    name: &'a str,
 }
 
-impl Default for FDTParseContext {
+impl<'a> Default for FDTParseContext<'a> {
     fn default() -> Self {
-        Self { depth: 0 }
+        Self {
+            depth: 0,
+            address_cells: 0,
+            size_cells: 0,
+            name: "",
+        }
     }
 }
 
@@ -185,22 +193,72 @@ impl<'a> Devicetree<'a> {
         Ok(())
     }
 
+    fn parse_prop(
+        &self,
+        context: &mut FDTParseContext,
+        name: &'a str,
+        value: &'a [u8],
+    ) -> Result<(), ()> {
+        let mut stream = FDTStream::new(value, 0);
+
+        match name {
+            "#address-cells" => {
+                context.address_cells = stream.parse_u32()?;
+            }
+            "#size-cells" => {
+                context.size_cells = stream.parse_u32()?;
+            }
+            "reg" => {
+                let address: u64;
+                let length: u64;
+
+                match context.address_cells {
+                    1 => {
+                        address = stream.parse_u32()? as u64;
+                    }
+                    2 => {
+                        address = stream.parse_u64()?;
+                    }
+                    _ => {
+                        return Err(());
+                    }
+                }
+                match context.size_cells {
+                    0 => {}
+                    1 => {
+                        length = stream.parse_u32()? as u64;
+                    }
+                    2 => {
+                        length = stream.parse_u64()?;
+                    }
+                    _ => {
+                        return Err(());
+                    }
+                }
+            }
+            &_ => {}
+        }
+
+        Ok(())
+    }
+
     fn parse_node(&self, stream: &mut FDTStream<'a>, context: FDTParseContext) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
         }
 
-        let mut next_context = FDTParseContext {
-            depth: context.depth + 1,
-        };
+        let mut next_context = context;
 
         while let Ok(token) = stream.next_token() {
             match token {
                 FDTToken::BeginNode(name) => {
+                    next_context.depth += 1;
+                    next_context.name = name;
                     self.parse_node(stream, next_context)?;
                 }
                 FDTToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
+                    self.parse_prop(&mut next_context, name, value)?;
                 }
                 FDTToken::EndNode => {
                     return Ok(());
