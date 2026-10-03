@@ -56,7 +56,7 @@ pub unsafe fn map_block(
         entry_begin += index * entry_size as u64;
         let entry_end = entry_begin + entry_size as u64;
 
-        if entry_end <= end && level > 0 {
+        if entry_begin >= begin && entry_end <= end && level > 0 {
             unsafe { *entry = Descriptor::block(begin, level, attrs).into() };
 
             return (entry_end - begin) as usize;
