@@ -42,7 +42,6 @@ SECTIONS {
   }
 
   .bss ALIGN(4K) : {
-    *(.trans_table_pool)
     *(.bss .bss.*)
     *(COMMON)
   }
