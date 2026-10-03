@@ -5,9 +5,11 @@ unsafe extern "C" {
     fn spinlock_lock(locked: *mut u32);
 }
 
+#[repr(C)]
 pub struct Spinlock<T> {
-    locked: UnsafeCell<u32>,
+    // NOTE: `data` must be the first field.
     data: UnsafeCell<T>,
+    locked: UnsafeCell<u32>,
 }
 
 unsafe impl<T: Send> Sync for Spinlock<T> {}
