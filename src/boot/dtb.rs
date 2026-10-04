@@ -109,7 +109,7 @@ impl<'a> FDTStream<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct FDTParseContext<'a> {
     depth: usize,
     address_cells: u32,
@@ -173,9 +173,9 @@ impl<'a> Devicetree<'a> {
 
     fn parse_structure_block(&self) -> Result<(), ()> {
         let mut stream = FDTStream::new(self.data, self.struct_offset);
-        let context = FDTParseContext::default();
+        let mut context = FDTParseContext::default();
 
-        self.parse_node(&mut stream, context)
+        self.parse_node(&mut stream, &mut context)
     }
 
     fn parse_reservation_block(&self) -> Result<(), ()> {
@@ -247,23 +247,29 @@ impl<'a> Devicetree<'a> {
         Ok(())
     }
 
-    fn parse_node(&self, stream: &mut FDTStream<'a>, context: FDTParseContext) -> Result<(), ()> {
+    fn parse_node(
+        &self,
+        stream: &mut FDTStream<'a>,
+        context: &mut FDTParseContext,
+    ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
         }
 
-        let mut next_context = context;
-
         while let Ok(token) = stream.next_token() {
             match token {
                 FDTToken::BeginNode(name) => {
+                    let mut next_context = context.clone();
+
                     next_context.depth += 1;
                     next_context.name = name;
-                    self.parse_node(stream, next_context)?;
+
+                    self.parse_node(stream, &mut next_context)?;
                 }
                 FDTToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
-                    self.parse_prop(&mut next_context, name, value)?;
+
+                    self.parse_prop(context, name, value)?;
                 }
                 FDTToken::EndNode => {
                     return Ok(());
