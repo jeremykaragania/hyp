@@ -209,30 +209,35 @@ impl<'a> Devicetree<'a> {
                 context.size_cells = stream.parse_u32()?;
             }
             "reg" => {
-                let address: u64;
-                let length: u64;
+                let pair_count = value.len()
+                    / ((context.address_cells + context.size_cells) as usize * size_of::<u32>());
 
-                match context.address_cells {
-                    1 => {
-                        address = stream.parse_u32()? as u64;
+                for _ in 0..pair_count {
+                    let mut address: u64 = 0;
+                    let mut length: u64 = 0;
+
+                    match context.address_cells {
+                        1 => {
+                            address = stream.parse_u32()? as u64;
+                        }
+                        2 => {
+                            address = stream.parse_u64()?;
+                        }
+                        _ => {
+                            return Err(());
+                        }
                     }
-                    2 => {
-                        address = stream.parse_u64()?;
-                    }
-                    _ => {
-                        return Err(());
-                    }
-                }
-                match context.size_cells {
-                    0 => {}
-                    1 => {
-                        length = stream.parse_u32()? as u64;
-                    }
-                    2 => {
-                        length = stream.parse_u64()?;
-                    }
-                    _ => {
-                        return Err(());
+                    match context.size_cells {
+                        0 => {}
+                        1 => {
+                            length = stream.parse_u32()? as u64;
+                        }
+                        2 => {
+                            length = stream.parse_u64()?;
+                        }
+                        _ => {
+                            return Err(());
+                        }
                     }
                 }
             }
