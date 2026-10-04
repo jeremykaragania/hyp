@@ -55,3 +55,22 @@ impl<T, const N: usize, const W: usize> Pool<T, N, W> {
         index.0 < N && self.bitmap.is_set(index.0)
     }
 }
+
+impl<T: Clone, const N: usize, const W: usize> Clone for Pool<T, N, W> {
+    fn clone(&self) -> Self {
+        let mut storage = [const { MaybeUninit::uninit() }; N];
+
+        for i in 0..N {
+            if self.bitmap.is_set(i) {
+                unsafe {
+                    storage[i].write(self.storage[i].assume_init_ref().clone());
+                }
+            }
+        }
+
+        Self {
+            storage,
+            bitmap: self.bitmap.clone(),
+        }
+    }
+}

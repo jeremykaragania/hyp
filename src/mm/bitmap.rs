@@ -8,6 +8,7 @@ macro_rules! bitmap_words {
     };
 }
 
+#[derive(Clone)]
 pub struct Bitmap<const W: usize> {
     words: [u64; W],
 }
