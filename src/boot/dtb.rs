@@ -1,4 +1,6 @@
 use crate::align::align_up;
+use crate::bitmap_words;
+use crate::mm::pool::Pool;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
@@ -8,6 +10,7 @@ unsafe extern "C" {
 }
 
 const FDT_MAX_DEPTH: usize = 64;
+const MAX_REG_PAIRS: usize = 8;
 
 const FDT_MAGIC: u32 = 0xd00dfeed;
 const FDT_BEGIN_NODE: u32 = 0x1;
@@ -114,7 +117,7 @@ struct FDTParseContext<'a> {
     depth: usize,
     address_cells: u32,
     size_cells: u32,
-    name: &'a str,
+    node: Node<'a>,
 }
 
 impl<'a> Default for FDTParseContext<'a> {
@@ -123,9 +126,32 @@ impl<'a> Default for FDTParseContext<'a> {
             depth: 0,
             address_cells: 0,
             size_cells: 0,
-            name: "",
+            node: Node::new(),
         }
     }
+}
+
+#[derive(Clone)]
+struct Node<'a> {
+    name: &'a str,
+    reg: Option<Reg>,
+}
+
+impl<'a> Node<'a> {
+    pub fn new() -> Self {
+        Self {
+            name: "",
+            reg: None,
+        }
+    }
+}
+
+type Reg = Pool<RegEntry, MAX_REG_PAIRS, { bitmap_words!(MAX_REG_PAIRS) }>;
+
+#[derive(Clone, Copy)]
+struct RegEntry {
+    address: u64,
+    length: u64,
 }
 
 struct Devicetree<'a> {
@@ -212,16 +238,24 @@ impl<'a> Devicetree<'a> {
                 let pair_count = value.len()
                     / ((context.address_cells + context.size_cells) as usize * size_of::<u32>());
 
+                if pair_count > MAX_REG_PAIRS {
+                    return Err(());
+                }
+
+                context.node.reg = Some(Pool::new());
+
+                let reg = context.node.reg.as_mut().ok_or(())?;
+
                 for _ in 0..pair_count {
-                    let mut address: u64 = 0;
-                    let mut length: u64 = 0;
+                    let id = reg.alloc().ok_or(())?;
+                    let reg_entry = reg.get_mut(id).ok_or(())?;
 
                     match context.address_cells {
                         1 => {
-                            address = stream.parse_u32()? as u64;
+                            reg_entry.address = stream.parse_u32()? as u64;
                         }
                         2 => {
-                            address = stream.parse_u64()?;
+                            reg_entry.address = stream.parse_u64()?;
                         }
                         _ => {
                             return Err(());
@@ -230,10 +264,10 @@ impl<'a> Devicetree<'a> {
                     match context.size_cells {
                         0 => {}
                         1 => {
-                            length = stream.parse_u32()? as u64;
+                            reg_entry.length = stream.parse_u32()? as u64;
                         }
                         2 => {
-                            length = stream.parse_u64()?;
+                            reg_entry.length = stream.parse_u64()?;
                         }
                         _ => {
                             return Err(());
@@ -262,7 +296,7 @@ impl<'a> Devicetree<'a> {
                     let mut next_context = context.clone();
 
                     next_context.depth += 1;
-                    next_context.name = name;
+                    next_context.node.name = name;
 
                     self.parse_node(stream, &mut next_context)?;
                 }
