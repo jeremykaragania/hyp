@@ -4,6 +4,7 @@ use crate::mm::pool::Pool;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
+use core::str::{Utf8Error, from_utf8};
 
 unsafe extern "C" {
     static ram_begin: Header;
@@ -135,6 +136,7 @@ impl<'a> Default for FDTParseContext<'a> {
 struct Node<'a> {
     name: &'a str,
     reg: Option<Reg>,
+    compatible: Option<Compatible<'a>>,
 }
 
 impl<'a> Node<'a> {
@@ -142,6 +144,7 @@ impl<'a> Node<'a> {
         Self {
             name: "",
             reg: None,
+            compatible: None,
         }
     }
 }
@@ -152,6 +155,24 @@ type Reg = Pool<RegEntry, MAX_REG_PAIRS, { bitmap_words!(MAX_REG_PAIRS) }>;
 struct RegEntry {
     address: u64,
     length: u64,
+}
+
+#[derive(Clone, Copy)]
+struct Compatible<'a> {
+    value: &'a [u8],
+}
+
+impl<'a> Compatible<'a> {
+    pub fn new(value: &'a [u8]) -> Self {
+        Self { value }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = Result<&'a str, Utf8Error>> {
+        self.value
+            .split(|&b| b == 0)
+            .filter(|s| !s.is_empty())
+            .map(from_utf8)
+    }
 }
 
 struct Devicetree<'a> {
@@ -221,13 +242,17 @@ impl<'a> Devicetree<'a> {
 
     fn parse_prop(
         &self,
-        context: &mut FDTParseContext,
+        stream: &mut FDTStream<'a>,
+        context: &mut FDTParseContext<'a>,
         name: &'a str,
         value: &'a [u8],
     ) -> Result<(), ()> {
         let mut stream = FDTStream::new(value, 0);
 
         match name {
+            "compatible" => {
+                context.node.compatible = Some(Compatible::new(value));
+            }
             "#address-cells" => {
                 context.address_cells = stream.parse_u32()?;
             }
@@ -284,7 +309,7 @@ impl<'a> Devicetree<'a> {
     fn parse_node(
         &self,
         stream: &mut FDTStream<'a>,
-        context: &mut FDTParseContext,
+        context: &mut FDTParseContext<'a>,
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
@@ -303,7 +328,7 @@ impl<'a> Devicetree<'a> {
                 FDTToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
 
-                    self.parse_prop(context, name, value)?;
+                    self.parse_prop(stream, context, name, value)?;
                 }
                 FDTToken::EndNode => {
                     return Ok(());
