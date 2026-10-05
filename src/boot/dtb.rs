@@ -1,5 +1,6 @@
 use crate::align::align_up;
 use crate::bitmap_words;
+use crate::device::{Device, DeviceKind, MAX_MMIO_REGIONS};
 use crate::mm::pool::Pool;
 use core::ffi::CStr;
 use core::mem::size_of;
@@ -11,7 +12,6 @@ unsafe extern "C" {
 }
 
 const FDT_MAX_DEPTH: usize = 64;
-const MAX_REG_PAIRS: usize = 8;
 
 const FDT_MAGIC: u32 = 0xd00dfeed;
 const FDT_BEGIN_NODE: u32 = 0x1;
@@ -147,9 +147,30 @@ impl<'a> Node<'a> {
             compatible: None,
         }
     }
+
+    fn to_device(&self) -> Option<Device> {
+        // If the node doesn't have a `compatible` property, then we can't turn
+        // this node into a `Device`.
+        let compatible = self.compatible?;
+
+        let device_kind = compatible.to_device_kind()?;
+        let mut device = Device::new(device_kind);
+
+        if let Some(reg) = self.reg.as_ref() {
+            for (_, reg_entry) in reg.iter() {
+                let id = device.mmio_regions.alloc()?;
+                let mmio = device.mmio_regions.get_mut(id)?;
+
+                mmio.begin = reg_entry.address;
+                mmio.size = reg_entry.length as usize;
+            }
+        }
+
+        Some(device)
+    }
 }
 
-type Reg = Pool<RegEntry, MAX_REG_PAIRS, { bitmap_words!(MAX_REG_PAIRS) }>;
+type Reg = Pool<RegEntry, MAX_MMIO_REGIONS, { bitmap_words!(MAX_MMIO_REGIONS) }>;
 
 #[derive(Clone, Copy)]
 struct RegEntry {
@@ -165,6 +186,21 @@ struct Compatible<'a> {
 impl<'a> Compatible<'a> {
     pub fn new(value: &'a [u8]) -> Self {
         Self { value }
+    }
+
+    fn to_device_kind(&self) -> Option<DeviceKind> {
+        for result in self.iter() {
+            let compatible = result.ok()?;
+
+            match compatible {
+                "arm,pl011" => {
+                    return Some(DeviceKind::PL011);
+                }
+                _ => {}
+            }
+        }
+
+        None
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Result<&'a str, Utf8Error>> {
@@ -242,7 +278,6 @@ impl<'a> Devicetree<'a> {
 
     fn parse_prop(
         &self,
-        stream: &mut FDTStream<'a>,
         context: &mut FDTParseContext<'a>,
         name: &'a str,
         value: &'a [u8],
@@ -263,7 +298,7 @@ impl<'a> Devicetree<'a> {
                 let pair_count = value.len()
                     / ((context.address_cells + context.size_cells) as usize * size_of::<u32>());
 
-                if pair_count > MAX_REG_PAIRS {
+                if pair_count > MAX_MMIO_REGIONS {
                     return Err(());
                 }
 
@@ -328,7 +363,7 @@ impl<'a> Devicetree<'a> {
                 FDTToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
 
-                    self.parse_prop(stream, context, name, value)?;
+                    self.parse_prop(context, name, value)?;
                 }
                 FDTToken::EndNode => {
                     return Ok(());
