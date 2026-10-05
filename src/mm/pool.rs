@@ -35,7 +35,7 @@ impl<T, const N: usize, const W: usize> Pool<T, N, W> {
         self.bitmap.clear(index.0);
     }
 
-    pub fn get(&mut self, index: PoolIndex) -> Option<&T> {
+    pub fn get(&self, index: PoolIndex) -> Option<&T> {
         if !self.is_index_valid(index) {
             return None;
         }
@@ -53,6 +53,13 @@ impl<T, const N: usize, const W: usize> Pool<T, N, W> {
 
     fn is_index_valid(&self, index: PoolIndex) -> bool {
         index.0 < N && self.bitmap.is_set(index.0)
+    }
+
+    pub fn iter(&self) -> PoolIter<'_, T, N, W> {
+        PoolIter {
+            pool: self,
+            index: 0,
+        }
     }
 }
 
@@ -72,5 +79,22 @@ impl<T: Clone, const N: usize, const W: usize> Clone for Pool<T, N, W> {
             storage,
             bitmap: self.bitmap.clone(),
         }
+    }
+}
+
+pub struct PoolIter<'a, T, const N: usize, const W: usize> {
+    pool: &'a Pool<T, N, W>,
+    index: usize,
+}
+
+impl<'a, T, const N: usize, const W: usize> Iterator for PoolIter<'a, T, N, W> {
+    type Item = (PoolIndex, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = self.pool.bitmap.find_next_set(self.index)?;
+        self.index = index + 1;
+
+        let pool_index = PoolIndex(index);
+        Some((pool_index, self.pool.get(pool_index)?))
     }
 }
