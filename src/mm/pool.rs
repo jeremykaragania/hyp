@@ -20,7 +20,7 @@ impl<T, const N: usize, const W: usize> Pool<T, N, W> {
     }
 
     pub fn alloc(&mut self) -> Option<PoolIndex> {
-        let index = self.bitmap.find_zero()?;
+        let index = self.bitmap.find_next_unset(0)?;
 
         if index > N {
             return None;
