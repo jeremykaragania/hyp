@@ -7,6 +7,7 @@ mod builtins;
 mod device;
 mod drivers;
 mod mm;
+mod platform;
 mod sync;
 
 use core::panic::PanicInfo;
