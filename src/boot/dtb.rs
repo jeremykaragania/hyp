@@ -2,6 +2,7 @@ use crate::align::align_up;
 use crate::bitmap_words;
 use crate::device::{Device, DeviceKind, MAX_MMIO_REGIONS};
 use crate::mm::pool::Pool;
+use crate::platform::Platform;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
@@ -249,19 +250,23 @@ impl<'a> Devicetree<'a> {
             .unwrap()
     }
 
-    pub fn parse(&self) -> Result<(), ()> {
-        self.parse_reservation_block()?;
-        self.parse_structure_block()
+    pub fn parse(&self) -> Result<Platform, ()> {
+        let mut platform = Platform::new();
+
+        self.parse_reservation_block(&mut platform)?;
+        self.parse_structure_block(&mut platform)?;
+
+        Ok(platform)
     }
 
-    fn parse_structure_block(&self) -> Result<(), ()> {
+    fn parse_structure_block(&self, platform: &mut Platform) -> Result<(), ()> {
         let mut stream = FDTStream::new(self.data, self.struct_offset);
         let mut context = FDTParseContext::default();
 
-        self.parse_node(&mut stream, &mut context)
+        self.parse_node(&mut stream, &mut context, platform)
     }
 
-    fn parse_reservation_block(&self) -> Result<(), ()> {
+    fn parse_reservation_block(&self, platform: &mut Platform) -> Result<(), ()> {
         let mut stream = FDTStream::new(self.data, self.reserve_offset);
 
         loop {
@@ -345,6 +350,7 @@ impl<'a> Devicetree<'a> {
         &self,
         stream: &mut FDTStream<'a>,
         context: &mut FDTParseContext<'a>,
+        platform: &mut Platform,
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
@@ -358,7 +364,7 @@ impl<'a> Devicetree<'a> {
                     next_context.depth += 1;
                     next_context.node.name = name;
 
-                    self.parse_node(stream, &mut next_context)?;
+                    self.parse_node(stream, &mut next_context, platform)?;
                 }
                 FDTToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
@@ -366,6 +372,16 @@ impl<'a> Devicetree<'a> {
                     self.parse_prop(context, name, value)?;
                 }
                 FDTToken::EndNode => {
+                    // TODO: Make this more generic. At the end of the node, we
+                    // are basically updating the
+                    // `Platform`, it might not always mean adding a device.
+                    if let Some(mut node_device) = context.node.to_device() {
+                        let id = platform.devices.alloc().ok_or(())?;
+                        let mut device = platform.devices.get_mut(id).ok_or(())?;
+
+                        device = &mut node_device;
+                    }
+
                     return Ok(());
                 }
                 FDTToken::Nop => {
@@ -381,7 +397,7 @@ impl<'a> Devicetree<'a> {
     }
 }
 
-pub fn parse_fdt() -> Result<(), ()> {
+pub fn parse_fdt() -> Result<Platform, ()> {
     let header: &Header = unsafe { &*(&ram_begin as *const Header) };
     let dt = Devicetree::new(header)?;
 
