@@ -10,10 +10,13 @@ mod mm;
 mod platform;
 mod sync;
 
+use boot::dtb::parse_fdt;
 use core::panic::PanicInfo;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn main() {
+    let res = parse_fdt();
+
     loop {}
 }
 
