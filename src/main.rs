@@ -6,6 +6,7 @@ mod boot;
 mod builtins;
 mod device;
 mod drivers;
+mod memory;
 mod mm;
 mod platform;
 mod sync;

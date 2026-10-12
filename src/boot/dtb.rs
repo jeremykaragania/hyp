@@ -1,12 +1,13 @@
 use crate::align::align_up;
 use crate::bitmap_words;
 use crate::device::{Device, DeviceKind, MAX_MMIO_REGIONS};
+use crate::memory::MemoryRegion;
 use crate::mm::pool::Pool;
 use crate::platform::Platform;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
-use core::str::{Utf8Error, from_utf8};
+use core::str::{FromStr, Utf8Error, from_utf8};
 
 unsafe extern "C" {
     static ram_begin: Header;
@@ -138,6 +139,7 @@ struct Node<'a> {
     name: &'a str,
     reg: Option<Reg>,
     compatible: Option<Compatible<'a>>,
+    device_type: Option<DeviceType>,
 }
 
 impl<'a> Node<'a> {
@@ -146,6 +148,7 @@ impl<'a> Node<'a> {
             name: "",
             reg: None,
             compatible: None,
+            device_type: None,
         }
     }
 
@@ -212,6 +215,22 @@ impl<'a> Compatible<'a> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeviceType {
+    Memory,
+}
+
+impl FromStr for DeviceType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "memory" => Ok(DeviceType::Memory),
+            _ => Err(()),
+        }
+    }
+}
+
 struct Devicetree<'a> {
     data: &'a [u8],
     struct_offset: usize,
@@ -248,6 +267,31 @@ impl<'a> Devicetree<'a> {
             .unwrap()
             .to_str()
             .unwrap()
+    }
+
+    fn update_platform(node: &Node, platform: &mut Platform) -> Result<(), ()> {
+        if let Some(device_type) = node.device_type {
+            match device_type {
+                DeviceType::Memory => {
+                    if let Some(reg) = node.reg.as_ref() {
+                        for (_, reg_entry) in reg.iter() {
+                            let id = platform.memory.alloc().ok_or(())?;
+                            let memory_region = platform.memory.get_mut(id).ok_or(())?;
+
+                            memory_region.begin = reg_entry.address;
+                            memory_region.size = reg_entry.length as usize;
+                        }
+                    }
+                }
+            }
+        } else if let Some(mut node_device) = node.to_device() {
+            let id = platform.devices.alloc().ok_or(())?;
+            let mut device = platform.devices.get_mut(id).ok_or(())?;
+
+            device = &mut node_device;
+        }
+
+        Ok(())
     }
 
     pub fn parse(&self) -> Result<Platform, ()> {
@@ -340,6 +384,11 @@ impl<'a> Devicetree<'a> {
                     }
                 }
             }
+            "device_type" => {
+                let device_type = CStr::from_bytes_until_nul(value).unwrap().to_str().unwrap();
+
+                context.node.device_type = device_type.parse().ok();
+            }
             &_ => {}
         }
 
@@ -372,15 +421,7 @@ impl<'a> Devicetree<'a> {
                     self.parse_prop(context, name, value)?;
                 }
                 FDTToken::EndNode => {
-                    // TODO: Make this more generic. At the end of the node, we
-                    // are basically updating the
-                    // `Platform`, it might not always mean adding a device.
-                    if let Some(mut node_device) = context.node.to_device() {
-                        let id = platform.devices.alloc().ok_or(())?;
-                        let mut device = platform.devices.get_mut(id).ok_or(())?;
-
-                        device = &mut node_device;
-                    }
+                    Self::update_platform(&context.node, platform)?;
 
                     return Ok(());
                 }
