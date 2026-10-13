@@ -1,5 +1,6 @@
 use crate::align::align_up;
 use crate::bitmap_words;
+use crate::cpu::CpuId;
 use crate::device::{Device, DeviceKind, MAX_MMIO_REGIONS};
 use crate::memory::MemoryRegion;
 use crate::mm::pool::Pool;
@@ -217,6 +218,7 @@ impl<'a> Compatible<'a> {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DeviceType {
+    Cpu,
     Memory,
 }
 
@@ -225,6 +227,7 @@ impl FromStr for DeviceType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "cpu" => Ok(DeviceType::Cpu),
             "memory" => Ok(DeviceType::Memory),
             _ => Err(()),
         }
@@ -280,6 +283,16 @@ impl<'a> Devicetree<'a> {
 
                             memory_region.begin = reg_entry.address;
                             memory_region.size = reg_entry.length as usize;
+                        }
+                    }
+                }
+                DeviceType::Cpu => {
+                    if let Some(reg) = node.reg.as_ref() {
+                        for (_, reg_entry) in reg.iter() {
+                            let id = platform.cpus.alloc().ok_or(())?;
+                            let cpu = platform.cpus.get_mut(id).ok_or(())?;
+
+                            cpu.id = CpuId(reg_entry.address as usize);
                         }
                     }
                 }

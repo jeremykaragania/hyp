@@ -4,6 +4,7 @@
 mod align;
 mod boot;
 mod builtins;
+mod cpu;
 mod device;
 mod drivers;
 mod memory;
