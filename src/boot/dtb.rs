@@ -23,7 +23,7 @@ const FDT_NOP: u32 = 0x4;
 const FDT_END: u32 = 0x9;
 
 #[derive(PartialEq, Eq)]
-enum FDTToken<'a> {
+enum FdtToken<'a> {
     BeginNode(&'a str),
     Prop { nameoff: u32, value: &'a [u8] },
     EndNode,
@@ -45,12 +45,12 @@ struct Header {
     size_dt_struct: u32,
 }
 
-struct FDTStream<'a> {
+struct FdtStream<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> FDTStream<'a> {
+impl<'a> FdtStream<'a> {
     fn new(data: &'a [u8], offset: usize) -> Self {
         Self {
             data: data,
@@ -82,7 +82,7 @@ impl<'a> FDTStream<'a> {
         Ok(ret)
     }
 
-    fn next_token(&mut self) -> Result<FDTToken<'a>, ()> {
+    fn next_token(&mut self) -> Result<FdtToken<'a>, ()> {
         let token_type = self.parse_u32()?;
 
         match token_type {
@@ -93,9 +93,9 @@ impl<'a> FDTStream<'a> {
                     .unwrap();
 
                 self.offset = align_up((self.offset + name.len() + 1) as u64, 4) as usize;
-                Ok(FDTToken::BeginNode(name))
+                Ok(FdtToken::BeginNode(name))
             }
-            FDT_END_NODE => Ok(FDTToken::EndNode),
+            FDT_END_NODE => Ok(FdtToken::EndNode),
             FDT_PROP => {
                 let len = self.parse_u32()? as usize;
                 let nameoff = self.parse_u32()?;
@@ -103,27 +103,27 @@ impl<'a> FDTStream<'a> {
                 let value = &self.data[self.offset..self.offset + len];
 
                 self.offset = align_up((self.offset + len) as u64, 4) as usize;
-                Ok(FDTToken::Prop { nameoff, value })
+                Ok(FdtToken::Prop { nameoff, value })
             }
             FDT_NOP => {
                 self.offset = align_up((self.offset + size_of::<u32>()) as u64, 4) as usize;
-                Ok(FDTToken::Nop)
+                Ok(FdtToken::Nop)
             }
-            FDT_END => Ok(FDTToken::End),
+            FDT_END => Ok(FdtToken::End),
             _ => Err(()),
         }
     }
 }
 
 #[derive(Clone)]
-struct FDTParseContext<'a> {
+struct FdtParseContext<'a> {
     depth: usize,
     address_cells: u32,
     size_cells: u32,
     node: Node<'a>,
 }
 
-impl<'a> Default for FDTParseContext<'a> {
+impl<'a> Default for FdtParseContext<'a> {
     fn default() -> Self {
         Self {
             depth: 0,
@@ -198,7 +198,7 @@ impl<'a> Compatible<'a> {
 
             match compatible {
                 "arm,pl011" => {
-                    return Some(DeviceKind::PL011);
+                    return Some(DeviceKind::Pl011);
                 }
                 _ => {}
             }
@@ -304,14 +304,14 @@ impl<'a> Devicetree<'a> {
     }
 
     fn parse_structure_block(&self, platform: &mut Platform) -> Result<(), ()> {
-        let mut stream = FDTStream::new(self.data, self.struct_offset);
-        let mut context = FDTParseContext::default();
+        let mut stream = FdtStream::new(self.data, self.struct_offset);
+        let mut context = FdtParseContext::default();
 
         self.parse_node(&mut stream, &mut context, platform)
     }
 
     fn parse_reservation_block(&self, platform: &mut Platform) -> Result<(), ()> {
-        let mut stream = FDTStream::new(self.data, self.reserve_offset);
+        let mut stream = FdtStream::new(self.data, self.reserve_offset);
 
         loop {
             let address = stream.parse_u64()?;
@@ -327,11 +327,11 @@ impl<'a> Devicetree<'a> {
 
     fn parse_prop(
         &self,
-        context: &mut FDTParseContext<'a>,
+        context: &mut FdtParseContext<'a>,
         name: &'a str,
         value: &'a [u8],
     ) -> Result<(), ()> {
-        let mut stream = FDTStream::new(value, 0);
+        let mut stream = FdtStream::new(value, 0);
 
         match name {
             "compatible" => {
@@ -397,8 +397,8 @@ impl<'a> Devicetree<'a> {
 
     fn parse_node(
         &self,
-        stream: &mut FDTStream<'a>,
-        context: &mut FDTParseContext<'a>,
+        stream: &mut FdtStream<'a>,
+        context: &mut FdtParseContext<'a>,
         platform: &mut Platform,
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
@@ -407,7 +407,7 @@ impl<'a> Devicetree<'a> {
 
         while let Ok(token) = stream.next_token() {
             match token {
-                FDTToken::BeginNode(name) => {
+                FdtToken::BeginNode(name) => {
                     let mut next_context = context.clone();
 
                     next_context.depth += 1;
@@ -415,20 +415,20 @@ impl<'a> Devicetree<'a> {
 
                     self.parse_node(stream, &mut next_context, platform)?;
                 }
-                FDTToken::Prop { nameoff, value } => {
+                FdtToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
 
                     self.parse_prop(context, name, value)?;
                 }
-                FDTToken::EndNode => {
+                FdtToken::EndNode => {
                     Self::update_platform(&context.node, platform)?;
 
                     return Ok(());
                 }
-                FDTToken::Nop => {
+                FdtToken::Nop => {
                     return Ok(());
                 }
-                FDTToken::End => {
+                FdtToken::End => {
                     return Ok(());
                 }
             }

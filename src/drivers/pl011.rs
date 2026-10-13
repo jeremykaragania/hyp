@@ -14,10 +14,10 @@ const LCR_H_STP2: u32 = 1 << 3;
 
 const CR_UARTEN: u32 = 1 << 0;
 
-pub static UART: Spinlock<PL011> = Spinlock::new(PL011::new(0x9000000));
+pub static UART: Spinlock<Pl011> = Spinlock::new(Pl011::new(0x9000000));
 
 #[repr(C)]
-struct PL011Registers {
+struct Pl011Registers {
     dr: u32,
     rsr_ecr: u32,
     reserved_0: [u32; 4],
@@ -36,14 +36,14 @@ struct PL011Registers {
     dmacr: u32,
 }
 
-pub struct PL011 {
-    regs: *mut PL011Registers,
+pub struct Pl011 {
+    regs: *mut Pl011Registers,
 }
 
-impl PL011 {
+impl Pl011 {
     pub const fn new(base: u64) -> Self {
         Self {
-            regs: base as *mut PL011Registers,
+            regs: base as *mut Pl011Registers,
         }
     }
 
@@ -101,9 +101,9 @@ impl PL011 {
     }
 }
 
-unsafe impl Send for PL011 {}
+unsafe impl Send for Pl011 {}
 
-impl fmt::Write for PL011 {
+impl fmt::Write for Pl011 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for c in s.bytes() {
             self.putchar(c as u32);
