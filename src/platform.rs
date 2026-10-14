@@ -2,7 +2,11 @@ use crate::bitmap_words;
 use crate::cpu::{Cpu, MAX_CPUS};
 use crate::device::{Device, MAX_MMIO_REGIONS};
 use crate::memory::MemoryRegion;
+use crate::sync::Spinlock;
 use crate::mm::pool::Pool;
+
+// TODO: This should be a `OnceLock` but we don't have that in the `core` crate.
+pub static mut PLATFORM: Spinlock<Platform> = Spinlock::new(Platform::new());
 
 pub const MAX_PLATFORM_DEVICES: usize = 64;
 
@@ -15,7 +19,7 @@ pub struct Platform {
 }
 
 impl Platform {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             devices: Pool::new(),
             memory: Pool::new(),
