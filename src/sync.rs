@@ -28,7 +28,7 @@ impl<T> Spinlock<T> {
         SpinlockGuard { lock: self }
     }
 
-    pub unsafe fn unlock(&self) {
+    fn unlock(&self) {
         let locked = self.locked.get();
         unsafe {
             *locked = 0;
