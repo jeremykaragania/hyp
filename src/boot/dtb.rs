@@ -142,6 +142,61 @@ struct Node<'a> {
     device_type: Option<DeviceType>,
 }
 
+#[derive(Clone)]
+struct NodePath<'a> {
+    names: [&'a str; FDT_MAX_DEPTH],
+    count: usize,
+}
+
+impl<'a> NodePath<'a> {
+    fn new() -> Self {
+        Self {
+            names: [""; FDT_MAX_DEPTH],
+            count: 0,
+        }
+    }
+
+    fn push_name(&mut self, name: &'a str) -> Result<(), ()> {
+        if self.count > FDT_MAX_DEPTH {
+            return Err(());
+        }
+
+        self.names[self.count] = name;
+        self.count += 1;
+
+        Ok(())
+    }
+
+    fn pop_name(&mut self) -> Option<&'a str> {
+        if self.count == 0 {
+            return None;
+        }
+
+        let name = self.names[self.count];
+
+        self.names[self.count] = "";
+        self.count -= 1;
+
+        Some(name)
+    }
+
+    fn matches(&self, expected: &'a str) -> bool {
+        if !expected.starts_with('/') {
+            return false;
+        }
+
+        let mut expected_names = expected[1..].split('/');
+
+        for name in self.names.iter().filter(|n| !n.is_empty()) {
+            if expected_names.next() != Some(*name) {
+                return false;
+            }
+        }
+
+        return expected_names.next().is_none();
+    }
+}
+
 impl<'a> Node<'a> {
     pub fn new() -> Self {
         Self {
@@ -316,7 +371,7 @@ impl<'a> Devicetree<'a> {
     fn parse_structure_block(&self, platform: &mut Platform) -> Result<(), ()> {
         let mut stream = FdtStream::new(self.data, self.struct_offset);
         let mut context = FdtParseContext::default();
-        let mut path: [&'a str; FDT_MAX_DEPTH] = [""; FDT_MAX_DEPTH];
+        let mut path = NodePath::new();
 
         self.parse_node(&mut stream, &mut context, platform, &mut path)
     }
@@ -411,7 +466,7 @@ impl<'a> Devicetree<'a> {
         stream: &mut FdtStream<'a>,
         context: &mut FdtParseContext<'a>,
         platform: &mut Platform,
-        path: &mut [&'a str; FDT_MAX_DEPTH],
+        path: &mut NodePath<'a>,
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
@@ -422,7 +477,7 @@ impl<'a> Devicetree<'a> {
                 FdtToken::BeginNode(name) => {
                     let mut next_context = context.clone();
 
-                    path[context.depth] = name;
+                    let _ = path.push_name(name);
                     next_context.depth += 1;
 
                     self.parse_node(stream, &mut next_context, platform, path)?;
@@ -435,7 +490,7 @@ impl<'a> Devicetree<'a> {
                 FdtToken::EndNode => {
                     Self::update_platform(&context.node, platform)?;
 
-                    path[context.depth] = "";
+                    path.pop_name();
                     return Ok(());
                 }
                 FdtToken::Nop => {
