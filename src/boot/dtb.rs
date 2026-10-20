@@ -137,7 +137,6 @@ impl<'a> Default for FdtParseContext<'a> {
 
 #[derive(Clone)]
 struct Node<'a> {
-    name: &'a str,
     reg: Option<Reg>,
     compatible: Option<Compatible<'a>>,
     device_type: Option<DeviceType>,
@@ -146,7 +145,6 @@ struct Node<'a> {
 impl<'a> Node<'a> {
     pub fn new() -> Self {
         Self {
-            name: "",
             reg: None,
             compatible: None,
             device_type: None,
@@ -300,7 +298,6 @@ impl<'a> Devicetree<'a> {
         } else if let Some(mut node_device) = node.to_device() {
             let id = platform.devices.alloc().ok_or(())?;
             let mut device = platform.devices.get_mut(id).ok_or(())?;
-
             device = &mut node_device;
         }
 
@@ -319,8 +316,9 @@ impl<'a> Devicetree<'a> {
     fn parse_structure_block(&self, platform: &mut Platform) -> Result<(), ()> {
         let mut stream = FdtStream::new(self.data, self.struct_offset);
         let mut context = FdtParseContext::default();
+        let mut path: [&'a str; FDT_MAX_DEPTH] = [""; FDT_MAX_DEPTH];
 
-        self.parse_node(&mut stream, &mut context, platform)
+        self.parse_node(&mut stream, &mut context, platform, &mut path)
     }
 
     fn parse_reservation_block(&self, platform: &mut Platform) -> Result<(), ()> {
@@ -413,6 +411,7 @@ impl<'a> Devicetree<'a> {
         stream: &mut FdtStream<'a>,
         context: &mut FdtParseContext<'a>,
         platform: &mut Platform,
+        path: &mut [&'a str; FDT_MAX_DEPTH],
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
@@ -423,10 +422,10 @@ impl<'a> Devicetree<'a> {
                 FdtToken::BeginNode(name) => {
                     let mut next_context = context.clone();
 
+                    path[context.depth] = name;
                     next_context.depth += 1;
-                    next_context.node.name = name;
 
-                    self.parse_node(stream, &mut next_context, platform)?;
+                    self.parse_node(stream, &mut next_context, platform, path)?;
                 }
                 FdtToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
@@ -436,6 +435,7 @@ impl<'a> Devicetree<'a> {
                 FdtToken::EndNode => {
                     Self::update_platform(&context.node, platform)?;
 
+                    path[context.depth] = "";
                     return Ok(());
                 }
                 FdtToken::Nop => {
