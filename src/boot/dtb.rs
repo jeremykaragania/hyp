@@ -122,6 +122,7 @@ struct FdtParseContext<'a> {
     address_cells: u32,
     size_cells: u32,
     node: Node<'a>,
+    stdout_path: &'a str,
 }
 
 impl<'a> Default for FdtParseContext<'a> {
@@ -131,6 +132,7 @@ impl<'a> Default for FdtParseContext<'a> {
             address_cells: 0,
             size_cells: 0,
             node: Node::new(),
+            stdout_path: "",
         }
     }
 }
@@ -454,6 +456,11 @@ impl<'a> Devicetree<'a> {
                 let device_type = CStr::from_bytes_until_nul(value).unwrap().to_str().unwrap();
 
                 context.node.device_type = device_type.parse().ok();
+            }
+            "stdout-path" => {
+                let stdout_path = CStr::from_bytes_until_nul(value).unwrap().to_str().unwrap();
+
+                context.stdout_path = stdout_path;
             }
             &_ => {}
         }
