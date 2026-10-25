@@ -122,7 +122,6 @@ struct FdtParseContext<'a> {
     address_cells: u32,
     size_cells: u32,
     node: Node<'a>,
-    stdout_path: &'a str,
 }
 
 impl<'a> Default for FdtParseContext<'a> {
@@ -132,7 +131,6 @@ impl<'a> Default for FdtParseContext<'a> {
             address_cells: 0,
             size_cells: 0,
             node: Node::new(),
-            stdout_path: "",
         }
     }
 }
@@ -374,8 +372,15 @@ impl<'a> Devicetree<'a> {
         let mut stream = FdtStream::new(self.data, self.struct_offset);
         let mut context = FdtParseContext::default();
         let mut path = NodePath::new();
+        let mut stdout_path: Option<&'a str> = None;
 
-        self.parse_node(&mut stream, &mut context, platform, &mut path)
+        self.parse_node(
+            &mut stream,
+            &mut context,
+            platform,
+            &mut path,
+            &mut stdout_path,
+        )
     }
 
     fn parse_reservation_block(&self, platform: &mut Platform) -> Result<(), ()> {
@@ -396,6 +401,7 @@ impl<'a> Devicetree<'a> {
     fn parse_prop(
         &self,
         context: &mut FdtParseContext<'a>,
+        stdout_path: &mut Option<&'a str>,
         name: &'a str,
         value: &'a [u8],
     ) -> Result<(), ()> {
@@ -458,9 +464,8 @@ impl<'a> Devicetree<'a> {
                 context.node.device_type = device_type.parse().ok();
             }
             "stdout-path" => {
-                let stdout_path = CStr::from_bytes_until_nul(value).unwrap().to_str().unwrap();
-
-                context.stdout_path = stdout_path;
+                let path = CStr::from_bytes_until_nul(value).unwrap().to_str().unwrap();
+                *stdout_path = Some(path);
             }
             &_ => {}
         }
@@ -474,6 +479,7 @@ impl<'a> Devicetree<'a> {
         context: &mut FdtParseContext<'a>,
         platform: &mut Platform,
         path: &mut NodePath<'a>,
+        stdout_path: &mut Option<&'a str>,
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
@@ -487,12 +493,12 @@ impl<'a> Devicetree<'a> {
                     let _ = path.push_name(name);
                     next_context.depth += 1;
 
-                    self.parse_node(stream, &mut next_context, platform, path)?;
+                    self.parse_node(stream, &mut next_context, platform, path, stdout_path)?;
                 }
                 FdtToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
 
-                    self.parse_prop(context, name, value)?;
+                    self.parse_prop(context, stdout_path, name, value)?;
                 }
                 FdtToken::EndNode => {
                     Self::update_platform(&context.node, platform)?;
