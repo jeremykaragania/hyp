@@ -3,8 +3,8 @@ use crate::bitmap_words;
 use crate::cpu::CpuId;
 use crate::device::{Device, DeviceKind, MAX_MMIO_REGIONS};
 use crate::memory::MemoryRegion;
-use crate::mm::pool::Pool;
-use crate::platform::Platform;
+use crate::mm::pool::{Pool, PoolIndex};
+use crate::platform::{MAX_PLATFORM_DEVICES, Platform};
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
@@ -133,6 +133,15 @@ impl<'a> Default for FdtParseContext<'a> {
             node: Node::new(),
         }
     }
+}
+
+#[derive(Clone)]
+// TODO: We don't have a proper notion of Device IDs. But since devices are
+// only created in the context of the platform's device table, we can just use
+// the pool index for now. However, we should have a proper formalization.
+struct NodePathDevice<'a> {
+    node_path: NodePath<'a>,
+    device_id: PoolIndex,
 }
 
 #[derive(Clone)]
@@ -325,7 +334,16 @@ impl<'a> Devicetree<'a> {
             .unwrap()
     }
 
-    fn update_platform(node: &Node, platform: &mut Platform) -> Result<(), ()> {
+    fn update_platform(
+        node: &Node,
+        platform: &mut Platform,
+        path: &NodePath<'a>,
+        node_path_map: &mut Pool<
+            NodePathDevice<'a>,
+            MAX_PLATFORM_DEVICES,
+            { bitmap_words!(MAX_PLATFORM_DEVICES) },
+        >,
+    ) -> Result<(), ()> {
         if let Some(device_type) = node.device_type {
             match device_type {
                 DeviceType::Memory => {
@@ -351,12 +369,44 @@ impl<'a> Devicetree<'a> {
                 }
             }
         } else if let Some(mut node_device) = node.to_device() {
-            let id = platform.devices.alloc().ok_or(())?;
-            let mut device = platform.devices.get_mut(id).ok_or(())?;
+            let device_id = platform.devices.alloc().ok_or(())?;
+            let mut device = platform.devices.get_mut(device_id).ok_or(())?;
             device = &mut node_device;
+
+            let node_path_device_id = node_path_map.alloc().ok_or(())?;
+            let node_path_device = node_path_map.get_mut(node_path_device_id).ok_or(())?;
+
+            node_path_device.node_path = path.clone();
+            node_path_device.device_id = device_id;
         }
 
         Ok(())
+    }
+
+    pub fn resolve_platform(
+        &self,
+        platform: &mut Platform,
+        stdout_path: &Option<&'a str>,
+        node_path_map: &Pool<
+            NodePathDevice<'a>,
+            MAX_PLATFORM_DEVICES,
+            { bitmap_words!(MAX_PLATFORM_DEVICES) },
+        >,
+    ) -> Result<(), ()> {
+        //let stdout_path = stdout_path.ok_or(())?;
+        let Some(stdout_path) = stdout_path else {
+            return Ok(());
+        };
+
+        for (_, node_path_device) in node_path_map.iter() {
+            if node_path_device.node_path.matches(stdout_path) {
+                platform.console = Some(node_path_device.device_id);
+
+                return Ok(());
+            }
+        }
+
+        Err(())
     }
 
     pub fn parse(&self) -> Result<Platform, ()> {
@@ -373,6 +423,11 @@ impl<'a> Devicetree<'a> {
         let mut context = FdtParseContext::default();
         let mut path = NodePath::new();
         let mut stdout_path: Option<&'a str> = None;
+        let mut node_path_map: Pool<
+            NodePathDevice,
+            MAX_PLATFORM_DEVICES,
+            { bitmap_words!(MAX_PLATFORM_DEVICES) },
+        > = Pool::new();
 
         self.parse_node(
             &mut stream,
@@ -380,7 +435,10 @@ impl<'a> Devicetree<'a> {
             platform,
             &mut path,
             &mut stdout_path,
-        )
+            &mut node_path_map,
+        )?;
+
+        self.resolve_platform(platform, &stdout_path, &node_path_map)
     }
 
     fn parse_reservation_block(&self, platform: &mut Platform) -> Result<(), ()> {
@@ -480,6 +538,11 @@ impl<'a> Devicetree<'a> {
         platform: &mut Platform,
         path: &mut NodePath<'a>,
         stdout_path: &mut Option<&'a str>,
+        node_path_map: &mut Pool<
+            NodePathDevice<'a>,
+            MAX_PLATFORM_DEVICES,
+            { bitmap_words!(MAX_PLATFORM_DEVICES) },
+        >,
     ) -> Result<(), ()> {
         if context.depth > FDT_MAX_DEPTH {
             return Err(());
@@ -493,7 +556,14 @@ impl<'a> Devicetree<'a> {
                     let _ = path.push_name(name);
                     next_context.depth += 1;
 
-                    self.parse_node(stream, &mut next_context, platform, path, stdout_path)?;
+                    self.parse_node(
+                        stream,
+                        &mut next_context,
+                        platform,
+                        path,
+                        stdout_path,
+                        node_path_map,
+                    )?;
                 }
                 FdtToken::Prop { nameoff, value } => {
                     let name = self.get_string(nameoff);
@@ -501,7 +571,7 @@ impl<'a> Devicetree<'a> {
                     self.parse_prop(context, stdout_path, name, value)?;
                 }
                 FdtToken::EndNode => {
-                    Self::update_platform(&context.node, platform)?;
+                    Self::update_platform(&context.node, platform, path, node_path_map)?;
 
                     path.pop_name();
                     return Ok(());
