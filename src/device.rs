@@ -16,12 +16,12 @@ pub enum DeviceKind {
 
 // A device on the platform that the hypervisor supports.
 #[derive(Clone)]
-pub struct Device {
+pub struct DeviceDesc {
     pub kind: DeviceKind,
     pub mmio_regions: Pool<MmioRegion, MAX_MMIO_REGIONS, { bitmap_words!(MAX_MMIO_REGIONS) }>,
 }
 
-impl Device {
+impl DeviceDesc {
     pub fn new(kind: DeviceKind) -> Self {
         Self {
             kind,

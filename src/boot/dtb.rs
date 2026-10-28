@@ -1,7 +1,7 @@
 use crate::align::align_up;
 use crate::bitmap_words;
 use crate::cpu::CpuId;
-use crate::device::{Device, DeviceKind, MAX_MMIO_REGIONS};
+use crate::device::{DeviceDesc, DeviceKind, MAX_MMIO_REGIONS};
 use crate::memory::MemoryRegion;
 use crate::mm::pool::{Pool, PoolIndex};
 use crate::platform::{MAX_PLATFORM_DEVICES, Platform};
@@ -215,13 +215,13 @@ impl<'a> Node<'a> {
         }
     }
 
-    fn to_device(&self) -> Option<Device> {
+    fn to_device(&self) -> Option<DeviceDesc> {
         // If the node doesn't have a `compatible` property, then we can't turn
         // this node into a `Device`.
         let compatible = self.compatible?;
 
         let device_kind = compatible.to_device_kind()?;
-        let mut device = Device::new(device_kind);
+        let mut device = DeviceDesc::new(device_kind);
 
         if let Some(reg) = self.reg.as_ref() {
             for (_, reg_entry) in reg.iter() {
