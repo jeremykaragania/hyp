@@ -14,8 +14,6 @@ const LCR_H_STP2: u32 = 1 << 3;
 
 const CR_UARTEN: u32 = 1 << 0;
 
-pub static UART: Spinlock<Pl011> = Spinlock::new(Pl011::new(0x9000000));
-
 #[repr(C)]
 struct Pl011Registers {
     dr: u32,
