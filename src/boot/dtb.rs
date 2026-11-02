@@ -371,7 +371,7 @@ impl<'a> Devicetree<'a> {
         } else if let Some(mut node_device) = node.to_device() {
             let device_id = platform.devices.alloc().ok_or(())?;
             let mut device = platform.devices.get_mut(device_id).ok_or(())?;
-            device = &mut node_device;
+            *device = node_device;
 
             let node_path_device_id = node_path_map.alloc().ok_or(())?;
             let node_path_device = node_path_map.get_mut(node_path_device_id).ok_or(())?;
@@ -393,7 +393,6 @@ impl<'a> Devicetree<'a> {
             { bitmap_words!(MAX_PLATFORM_DEVICES) },
         >,
     ) -> Result<(), ()> {
-        //let stdout_path = stdout_path.ok_or(())?;
         let Some(stdout_path) = stdout_path else {
             return Ok(());
         };
