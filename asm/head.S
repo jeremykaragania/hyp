@@ -44,7 +44,6 @@ boot:
   mov sp, x0
 
   bl init_table_alloc
-  ldr x0, =TABLE_POOL
   bl create_init_mapping
 
   mrs x0, currentel

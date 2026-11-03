@@ -2,6 +2,7 @@ use crate::bitmap_words;
 use crate::mm::pool::Pool;
 use crate::mm::table::Table;
 use crate::sync::Spinlock;
+use core::ptr::addr_of;
 
 const TABLE_POOL_SIZE: usize = 64;
 
@@ -15,4 +16,8 @@ pub extern "C" fn init_table_alloc() {
 
     // Reserve the first translation table in the pool.
     pool.alloc();
+}
+
+pub fn base_table_ptr() -> *mut Table {
+    addr_of!(TABLE_POOL).cast_mut().cast()
 }

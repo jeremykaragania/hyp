@@ -1,7 +1,7 @@
 use crate::mm::table::{
     AccessPermissions, Descriptor, Execution, MemoryAttributes, level_entry_size, level_shift,
 };
-use crate::mm::table_alloc::TABLE_POOL;
+use crate::mm::table_alloc::{TABLE_POOL, base_table_ptr};
 
 const TEXT_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
     permissions: AccessPermissions::ReadOnly,
@@ -84,7 +84,9 @@ pub unsafe fn map_region(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn create_init_mapping(table: *mut u64) {
+pub extern "C" fn create_init_mapping() {
+    let table = base_table_ptr();
+
     unsafe {
         let begin = &ram_begin as *const u8 as u64;
         let end = &text_begin as *const u8 as u64;
