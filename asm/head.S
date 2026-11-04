@@ -46,8 +46,7 @@ boot:
   bl init_table_alloc
   bl create_init_mapping
 
-  mrs x0, currentel
-  lsr x0, x0, #2
+  bl current_el
   cmp x0, #2
   beq boot_el2
 
@@ -59,3 +58,9 @@ boot_el2:
 
 1:
   b main
+
+.global current_el
+current_el:
+  mrs x0, currentel
+  lsr x0, x0, #2
+  ret
