@@ -11,11 +11,9 @@
   /*
     Initialize TCR_EL with:
     T0SZ = 16
-    T1SZ = 16
     TG1 = 4KB
   */
   mov x0, #16
-  orr x0, x0, #(16 << 16)
   orr x0, x0, #(2 << 30)
   msr tcr_el\level, x0
   isb
