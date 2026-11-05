@@ -48,7 +48,7 @@ SECTIONS {
 
   . = ALIGN(4K);
   init_stack_begin = .;
-  . = init_stack_begin + 4K;
+  . = init_stack_begin + 4M;
   init_stack_end = .;
 
   data_end = .;
