@@ -37,10 +37,11 @@ unsafe fn get_or_create_table(desc: *mut Descriptor, level: u8) -> *mut Descript
     entry.addr(level) as *mut Descriptor
 }
 
-pub unsafe fn map_block(
+unsafe fn map_block(
     mut table: *mut Descriptor,
     begin: u64,
     end: u64,
+    pa: u64,
     attrs: &MemoryAttributes,
 ) -> usize {
     let mut entry_begin = 0;
@@ -56,7 +57,7 @@ pub unsafe fn map_block(
         let entry_end = entry_begin + entry_size as u64;
 
         if entry_begin >= begin && entry_end <= end && level > 0 {
-            unsafe { *entry = Descriptor::block(begin, level, attrs).into() };
+            unsafe { *entry = Descriptor::block(pa, level, attrs).into() };
 
             return (entry_end - begin) as usize;
         }
@@ -67,15 +68,18 @@ pub unsafe fn map_block(
     unreachable!();
 }
 
+// TODO: Clean up this interface and make it nice.
 pub unsafe fn map_region(
     table: *mut Descriptor,
     mut begin: u64,
     end: u64,
+    mut pa: u64,
     attrs: &MemoryAttributes,
 ) {
     while begin < end {
-        let consumed = unsafe { map_block(table, begin, end, attrs) };
+        let consumed = unsafe { map_block(table, begin, end, pa, attrs) };
         begin += consumed as u64;
+        pa += consumed as u64;
     }
 }
 
@@ -83,17 +87,36 @@ pub unsafe fn map_region(
 pub extern "C" fn create_init_mapping() {
     let table = base_table_ptr();
 
+    // NOTE: Identity mappings for early boot.
     unsafe {
         let begin = &ram_begin as *const u8 as u64;
         let end = &text_begin as *const u8 as u64;
-        map_region(table as *mut Descriptor, begin, end, &DATA_MEM_ATTRIBUTES);
+        map_region(
+            table as *mut Descriptor,
+            begin,
+            end,
+            begin,
+            &DATA_MEM_ATTRIBUTES,
+        );
 
         let begin = &text_begin as *const u8 as u64;
         let end = &data_begin as *const u8 as u64;
-        map_region(table as *mut Descriptor, begin, end, &TEXT_MEM_ATTRIBUTES);
+        map_region(
+            table as *mut Descriptor,
+            begin,
+            end,
+            begin,
+            &TEXT_MEM_ATTRIBUTES,
+        );
 
         let begin = &data_begin as *const u8 as u64;
         let end = &data_end as *const u8 as u64;
-        map_region(table as *mut Descriptor, begin, end, &DATA_MEM_ATTRIBUTES);
+        map_region(
+            table as *mut Descriptor,
+            begin,
+            end,
+            begin,
+            &DATA_MEM_ATTRIBUTES,
+        );
     }
 }
