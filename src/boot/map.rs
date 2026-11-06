@@ -19,11 +19,7 @@ unsafe extern "C" {
     static data_end: u8;
 }
 
-unsafe fn get_or_create_table(
-    table: *mut Descriptor,
-    desc: *mut Descriptor,
-    level: u8,
-) -> *mut Descriptor {
+unsafe fn get_or_create_table(desc: *mut Descriptor, level: u8) -> *mut Descriptor {
     let entry = unsafe { *desc };
     let mut pool = TABLE_POOL.lock();
 
@@ -65,7 +61,7 @@ pub unsafe fn map_block(
             return (entry_end - begin) as usize;
         }
 
-        table = unsafe { get_or_create_table(table, entry, level) };
+        table = unsafe { get_or_create_table(entry, level) };
     }
 
     unreachable!();
