@@ -1,5 +1,6 @@
 use crate::mm::table::{
-    AccessPermissions, Descriptor, Execution, MemoryAttributes, level_entry_size, level_shift,
+    AccessPermissions, Descriptor, DescriptorKind, Execution, MemoryAttributes, level_entry_size,
+    level_shift,
 };
 use crate::mm::table_alloc::{TABLE_POOL, base_table_ptr};
 
@@ -23,18 +24,26 @@ unsafe fn get_or_create_table(desc: *mut Descriptor, level: u8) -> *mut Descript
     let entry = unsafe { *desc };
     let mut pool = TABLE_POOL.lock();
 
-    if entry.bits() == 0 {
-        let id = pool.alloc().unwrap();
-        let next_table = pool.get_mut(id).unwrap().0.as_mut_ptr();
+    match entry.kind() {
+        DescriptorKind::Invalid => {
+            let id = pool.alloc().unwrap();
+            let next_table = pool.get_mut(id).unwrap().0.as_mut_ptr();
 
-        unsafe {
-            *desc = Descriptor::table(next_table as u64).into();
+            unsafe {
+                *desc = Descriptor::table(next_table as u64).into();
+            }
+
+            next_table
         }
-
-        return next_table;
+        DescriptorKind::Table => entry.addr(level) as *mut Descriptor,
+        DescriptorKind::Block => {
+            // TODO: This means that we're overlapping a mapping in some way. We
+            // should decide how we should handle this. Should we remap the
+            // block descriptor in the new page table? Or should we just panic
+            // and not allow this to happen?
+            todo!();
+        }
     }
-
-    entry.addr(level) as *mut Descriptor
 }
 
 unsafe fn map_block(
