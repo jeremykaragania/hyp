@@ -14,6 +14,7 @@ mod sync;
 
 use boot::dtb::parse_fdt;
 use core::panic::PanicInfo;
+use device::init_devices;
 use platform::PLATFORM;
 
 #[unsafe(no_mangle)]
@@ -27,6 +28,8 @@ pub extern "C" fn main() {
             panic!(); // TODO: Maybe store an error code in a register or something.
         }
     }
+
+    init_devices().unwrap();
 
     loop {}
 }

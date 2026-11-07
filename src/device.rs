@@ -1,9 +1,18 @@
 use crate::bitmap_words;
+use crate::boot::map::{DATA_MEM_ATTRIBUTES, map_region};
 use crate::drivers::pl011::Pl011;
 use crate::mm::pool::Pool;
+use crate::mm::table::{Descriptor, Table};
+use crate::mm::table_alloc::base_table_ptr;
+use crate::platform::MAX_PLATFORM_DEVICES;
 use crate::platform::{PLATFORM, Platform};
+use crate::sync::Spinlock;
 
 pub const MAX_MMIO_REGIONS: usize = 8;
+
+pub static DEVICES: Spinlock<
+    Pool<InitializedDevice, MAX_PLATFORM_DEVICES, { bitmap_words!(MAX_PLATFORM_DEVICES) }>,
+> = Spinlock::new(Pool::new());
 
 #[derive(Clone, Copy)]
 pub struct MmioRegion {
@@ -38,9 +47,13 @@ pub enum InitializedDevice {
 
 pub fn init_devices() -> Result<(), ()> {
     let mut platform = PLATFORM.lock();
+    let mut devices = DEVICES.lock();
 
     for (_, desc) in platform.devices.iter() {
-        init_device(desc)?;
+        let id = devices.alloc().ok_or(())?;
+        let device = devices.get_mut(id).ok_or(())?;
+
+        *device = init_device(desc)?;
     }
 
     Ok(())
@@ -50,9 +63,23 @@ fn init_device(desc: &DeviceDesc) -> Result<InitializedDevice, ()> {
     match desc.kind {
         DeviceKind::Pl011 => {
             let (_, region) = desc.mmio_regions.iter().next().ok_or(())?;
-            return Ok(InitializedDevice::Pl011(Pl011::new(region.begin)));
+            let begin = region.begin;
+            let end = begin + region.size as u64;
+            let mut table = base_table_ptr();
+
+            unsafe {
+                map_region(
+                    table as *mut Descriptor,
+                    begin,
+                    end,
+                    begin,
+                    &DATA_MEM_ATTRIBUTES,
+                );
+            }
+
+            let pl011 = Pl011::new(begin);
+
+            return Ok(InitializedDevice::Pl011(pl011));
         }
     }
-
-    Err(())
 }

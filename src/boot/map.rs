@@ -4,11 +4,11 @@ use crate::mm::table::{
 };
 use crate::mm::table_alloc::{TABLE_POOL, base_table_ptr};
 
-const TEXT_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
+pub const TEXT_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
     permissions: AccessPermissions::ReadOnly,
     execution: Execution::Executable,
 };
-const DATA_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
+pub const DATA_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
     permissions: AccessPermissions::ReadWrite,
     execution: Execution::NonExecutable,
 };
