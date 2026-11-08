@@ -56,8 +56,6 @@ impl<T> DerefMut for SpinlockGuard<'_, T> {
 
 impl<T> Drop for SpinlockGuard<'_, T> {
     fn drop(&mut self) {
-        unsafe {
-            self.lock.unlock();
-        }
+        self.lock.unlock();
     }
 }

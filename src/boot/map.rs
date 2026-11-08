@@ -26,7 +26,7 @@ unsafe fn get_or_create_table(desc: *mut Descriptor, level: u8) -> *mut Descript
 
     match entry.kind() {
         DescriptorKind::Invalid => {
-            let id = pool.alloc().unwrap();
+            let id = pool.reserve().unwrap();
             let next_table = pool.get_mut(id).unwrap().0.as_mut_ptr();
 
             unsafe {

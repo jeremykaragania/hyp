@@ -19,10 +19,10 @@ impl<T, const N: usize, const W: usize> Pool<T, N, W> {
         }
     }
 
-    pub fn alloc(&mut self) -> Option<PoolIndex> {
+    pub fn reserve(&mut self) -> Option<PoolIndex> {
         let index = self.bitmap.find_next_unset(0)?;
 
-        if index > N {
+        if index >= N {
             return None;
         }
 
@@ -31,8 +31,27 @@ impl<T, const N: usize, const W: usize> Pool<T, N, W> {
         Some(PoolIndex(index))
     }
 
-    pub fn free(&mut self, index: PoolIndex) {
+    pub fn insert(&mut self, value: T) -> Option<PoolIndex> {
+        let index = self.bitmap.find_next_unset(0)?;
+
+        if index >= N {
+            return None;
+        }
+
+        self.storage[index].write(value);
+        self.bitmap.set(index);
+
+        Some(PoolIndex(index))
+    }
+
+    pub fn remove(&mut self, index: PoolIndex) -> Option<T> {
+        if !self.is_index_valid(index) {
+            return None;
+        }
+
         self.bitmap.clear(index.0);
+
+        Some(unsafe { self.storage[index.0].assume_init_read() })
     }
 
     pub fn get(&self, index: PoolIndex) -> Option<&T> {

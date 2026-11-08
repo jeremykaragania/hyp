@@ -2,10 +2,10 @@ use crate::bitmap_words;
 use crate::boot::map::{DATA_MEM_ATTRIBUTES, map_region};
 use crate::drivers::pl011::Pl011;
 use crate::mm::pool::Pool;
-use crate::mm::table::{Descriptor, Table};
+use crate::mm::table::Descriptor;
 use crate::mm::table_alloc::base_table_ptr;
 use crate::platform::MAX_PLATFORM_DEVICES;
-use crate::platform::{PLATFORM, Platform};
+use crate::platform::PLATFORM;
 use crate::sync::Spinlock;
 
 pub const MAX_MMIO_REGIONS: usize = 8;
@@ -46,14 +46,11 @@ pub enum InitializedDevice {
 }
 
 pub fn init_devices() -> Result<(), ()> {
-    let mut platform = PLATFORM.lock();
+    let platform = PLATFORM.lock();
     let mut devices = DEVICES.lock();
 
     for (_, desc) in platform.devices.iter() {
-        let id = devices.alloc().ok_or(())?;
-        let device = devices.get_mut(id).ok_or(())?;
-
-        *device = init_device(desc)?;
+        devices.insert(init_device(desc)?).ok_or(())?;
     }
 
     Ok(())
@@ -65,7 +62,7 @@ fn init_device(desc: &DeviceDesc) -> Result<InitializedDevice, ()> {
             let (_, region) = desc.mmio_regions.iter().next().ok_or(())?;
             let begin = region.begin;
             let end = begin + region.size as u64;
-            let mut table = base_table_ptr();
+            let table = base_table_ptr();
 
             unsafe {
                 map_region(

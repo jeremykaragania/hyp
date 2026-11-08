@@ -15,7 +15,7 @@ pub extern "C" fn init_table_alloc() {
     let mut pool = TABLE_POOL.lock();
 
     // Reserve the first translation table in the pool.
-    pool.alloc();
+    pool.reserve();
 }
 
 pub fn base_table_ptr() -> *mut Table {

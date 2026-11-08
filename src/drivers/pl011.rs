@@ -1,4 +1,3 @@
-use crate::sync::Spinlock;
 use core::fmt;
 use core::ptr::{read_volatile, write_volatile};
 

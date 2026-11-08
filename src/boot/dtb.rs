@@ -1,7 +1,8 @@
 use crate::align::align_up;
 use crate::bitmap_words;
+use crate::cpu::Cpu;
 use crate::cpu::CpuId;
-use crate::device::{DeviceDesc, DeviceKind, MAX_MMIO_REGIONS};
+use crate::device::{DeviceDesc, DeviceKind, MAX_MMIO_REGIONS, MmioRegion};
 use crate::memory::MemoryRegion;
 use crate::mm::pool::{Pool, PoolIndex};
 use crate::platform::{MAX_PLATFORM_DEVICES, Platform};
@@ -225,11 +226,12 @@ impl<'a> Node<'a> {
 
         if let Some(reg) = self.reg.as_ref() {
             for (_, reg_entry) in reg.iter() {
-                let id = device.mmio_regions.alloc()?;
-                let mmio = device.mmio_regions.get_mut(id)?;
+                let mmio = MmioRegion {
+                    begin: reg_entry.address,
+                    size: reg_entry.length as usize,
+                };
 
-                mmio.begin = reg_entry.address;
-                mmio.size = reg_entry.length as usize;
+                device.mmio_regions.insert(mmio)?;
             }
         }
 
@@ -349,35 +351,36 @@ impl<'a> Devicetree<'a> {
                 DeviceType::Memory => {
                     if let Some(reg) = node.reg.as_ref() {
                         for (_, reg_entry) in reg.iter() {
-                            let id = platform.memory.alloc().ok_or(())?;
-                            let memory_region = platform.memory.get_mut(id).ok_or(())?;
+                            let memory_region = MemoryRegion {
+                                begin: reg_entry.address,
+                                size: reg_entry.length as usize,
+                            };
 
-                            memory_region.begin = reg_entry.address;
-                            memory_region.size = reg_entry.length as usize;
+                            platform.memory.insert(memory_region).ok_or(())?;
                         }
                     }
                 }
                 DeviceType::Cpu => {
                     if let Some(reg) = node.reg.as_ref() {
                         for (_, reg_entry) in reg.iter() {
-                            let id = platform.cpus.alloc().ok_or(())?;
-                            let cpu = platform.cpus.get_mut(id).ok_or(())?;
+                            let cpu = Cpu {
+                                id: CpuId(reg_entry.address as usize),
+                            };
 
-                            cpu.id = CpuId(reg_entry.address as usize);
+                            platform.cpus.insert(cpu).ok_or(())?;
                         }
                     }
                 }
             }
-        } else if let Some(mut node_device) = node.to_device() {
-            let device_id = platform.devices.alloc().ok_or(())?;
-            let mut device = platform.devices.get_mut(device_id).ok_or(())?;
-            *device = node_device;
+        } else if let Some(node_device) = node.to_device() {
+            let device_id = platform.devices.insert(node_device).ok_or(())?;
 
-            let node_path_device_id = node_path_map.alloc().ok_or(())?;
-            let node_path_device = node_path_map.get_mut(node_path_device_id).ok_or(())?;
+            let node_path = NodePathDevice {
+                node_path: path.clone(),
+                device_id: device_id,
+            };
 
-            node_path_device.node_path = path.clone();
-            node_path_device.device_id = device_id;
+            node_path_map.insert(node_path).ok_or(())?;
         }
 
         Ok(())
@@ -440,7 +443,8 @@ impl<'a> Devicetree<'a> {
         self.resolve_platform(platform, &stdout_path, &node_path_map)
     }
 
-    fn parse_reservation_block(&self, platform: &mut Platform) -> Result<(), ()> {
+    // NOTE: Eventually we'll use the `_platform` argument.
+    fn parse_reservation_block(&self, _platform: &mut Platform) -> Result<(), ()> {
         let mut stream = FdtStream::new(self.data, self.reserve_offset);
 
         loop {
@@ -487,8 +491,10 @@ impl<'a> Devicetree<'a> {
                 let reg = context.node.reg.as_mut().ok_or(())?;
 
                 for _ in 0..pair_count {
-                    let id = reg.alloc().ok_or(())?;
-                    let reg_entry = reg.get_mut(id).ok_or(())?;
+                    let mut reg_entry = RegEntry {
+                        address: 0,
+                        length: 0,
+                    };
 
                     match context.address_cells {
                         1 => {
@@ -513,6 +519,8 @@ impl<'a> Devicetree<'a> {
                             return Err(());
                         }
                     }
+
+                    reg.insert(reg_entry).ok_or(())?;
                 }
             }
             "device_type" => {
