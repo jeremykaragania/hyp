@@ -31,6 +31,7 @@ pub struct MemoryAttributes {
 #[derive(Clone, Copy)]
 pub struct Descriptor(pub u64);
 
+#[repr(align(0x1000))]
 pub struct Table(pub [Descriptor; TABLE_ENTRY_COUNT]);
 
 impl Descriptor {
