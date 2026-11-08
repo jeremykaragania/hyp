@@ -1,5 +1,6 @@
 use crate::bitmap_words;
 use crate::boot::map::{DATA_MEM_ATTRIBUTES, map_region};
+use crate::drivers::console::CONSOLE;
 use crate::drivers::pl011::Pl011;
 use crate::mm::pool::Pool;
 use crate::mm::table::Descriptor;
@@ -10,6 +11,8 @@ use crate::sync::Spinlock;
 
 pub const MAX_MMIO_REGIONS: usize = 8;
 
+// 1:1 mapping with the platform device descriptor pool.
+// TODO: Make it more enforcable. Don't just depend on the allocation order of `Pool`.
 pub static DEVICES: Spinlock<
     Pool<InitializedDevice, MAX_PLATFORM_DEVICES, { bitmap_words!(MAX_PLATFORM_DEVICES) }>,
 > = Spinlock::new(Pool::new());
@@ -52,6 +55,9 @@ pub fn init_devices() -> Result<(), ()> {
     for (_, desc) in platform.devices.iter() {
         devices.insert(init_device(desc)?).ok_or(())?;
     }
+
+    let mut console = CONSOLE.lock();
+    console.device = platform.console;
 
     Ok(())
 }
