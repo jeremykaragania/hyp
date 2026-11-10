@@ -17,6 +17,10 @@ use core::panic::PanicInfo;
 use device::init_devices;
 use platform::PLATFORM;
 
+unsafe extern "C" {
+    fn current_el() -> u64;
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn main() {
     match parse_fdt() {
@@ -30,6 +34,14 @@ pub extern "C" fn main() {
     }
 
     init_devices().unwrap();
+
+    // We should boot in the highest EL. So if we're not in EL2, then we
+    // know that virtualization isn't supported. We wait until here to panic as
+    // to give the hypervisor the chance to initialize a console.
+    // NOTE: We don't support EL3.
+    if unsafe { current_el() } != 2 {
+        panic!("Virtualization is not supported on this platform");
+    }
 
     loop {}
 }
