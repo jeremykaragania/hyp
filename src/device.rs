@@ -12,7 +12,8 @@ use crate::sync::Spinlock;
 pub const MAX_MMIO_REGIONS: usize = 8;
 
 // 1:1 mapping with the platform device descriptor pool.
-// TODO: Make it more enforcable. Don't just depend on the allocation order of `Pool`.
+// TODO: Make it more enforcable. Don't just depend on the allocation order of
+// `Pool`.
 pub static DEVICES: Spinlock<
     Pool<InitializedDevice, MAX_PLATFORM_DEVICES, { bitmap_words!(MAX_PLATFORM_DEVICES) }>,
 > = Spinlock::new(Pool::new());
