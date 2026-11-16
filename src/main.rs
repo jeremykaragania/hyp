@@ -7,6 +7,7 @@ mod builtins;
 mod cpu;
 mod device;
 mod drivers;
+mod image;
 mod memory;
 mod mm;
 mod platform;

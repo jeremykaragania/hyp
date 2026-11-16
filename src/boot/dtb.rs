@@ -1,8 +1,8 @@
 use crate::align::align_up;
 use crate::bitmap_words;
-use crate::cpu::Cpu;
-use crate::cpu::CpuId;
+use crate::cpu::{Cpu, CpuId};
 use crate::device::{DeviceDesc, DeviceKind, MAX_MMIO_REGIONS, MmioRegion};
+use crate::image::Image;
 use crate::memory::MemoryRegion;
 use crate::mm::pool::{Pool, PoolIndex};
 use crate::platform::{MAX_PLATFORM_DEVICES, Platform};
@@ -237,6 +237,18 @@ impl<'a> Node<'a> {
 
         Some(device)
     }
+
+    fn to_image(&self) -> Option<Image> {
+        let compatible = self.compatible?;
+        let compatible_kind = compatible.kind()?;
+
+        let (_, reg) = self.reg.as_ref()?.iter().next()?;
+
+        Some(Image {
+            address: reg.address,
+            size: reg.length as usize,
+        })
+    }
 }
 
 type Reg = Pool<RegEntry, MAX_MMIO_REGIONS, { bitmap_words!(MAX_MMIO_REGIONS) }>;
@@ -247,6 +259,11 @@ struct RegEntry {
     length: u64,
 }
 
+enum CompatibleKind {
+    Device,
+    Image,
+}
+
 #[derive(Clone, Copy)]
 struct Compatible<'a> {
     value: &'a [u8],
@@ -255,6 +272,25 @@ struct Compatible<'a> {
 impl<'a> Compatible<'a> {
     pub fn new(value: &'a [u8]) -> Self {
         Self { value }
+    }
+
+    fn kind(&self) -> Option<CompatibleKind> {
+        if self.value.is_empty() {
+            return None;
+        }
+
+        for result in self.iter() {
+            let compatible = result.ok()?;
+
+            match compatible {
+                "multiboot,module" | "multiboot,kernel" => {
+                    return Some(CompatibleKind::Image);
+                }
+                _ => {}
+            }
+        }
+
+        Some(CompatibleKind::Device)
     }
 
     fn to_device_kind(&self) -> Option<DeviceKind> {
@@ -372,15 +408,27 @@ impl<'a> Devicetree<'a> {
                     }
                 }
             }
-        } else if let Some(node_device) = node.to_device() {
-            let device_id = platform.devices.insert(node_device).ok_or(())?;
+        } else {
+            let compatible = node.compatible.ok_or(())?;
+            let kind = compatible.kind().ok_or(())?;
 
-            let node_path = NodePathDevice {
-                node_path: path.clone(),
-                device_id: device_id,
-            };
-
-            node_path_map.insert(node_path).ok_or(())?;
+            match kind {
+                CompatibleKind::Device => {
+                    if let Some(node_device) = node.to_device() {
+                        let device_id = platform.devices.insert(node_device).ok_or(())?;
+                        let node_path = NodePathDevice {
+                            node_path: path.clone(),
+                            device_id: device_id,
+                        };
+                        node_path_map.insert(node_path).ok_or(())?;
+                    }
+                }
+                CompatibleKind::Image => {
+                    if let Some(node_image) = node.to_image() {
+                        let image_id = platform.images.insert(node_image).ok_or(())?;
+                    }
+                }
+            }
         }
 
         Ok(())
