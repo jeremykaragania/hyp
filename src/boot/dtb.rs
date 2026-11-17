@@ -240,7 +240,10 @@ impl<'a> Node<'a> {
 
     fn to_image(&self) -> Option<Image> {
         let compatible = self.compatible?;
-        let compatible_kind = compatible.kind()?;
+
+        let CompatibleKind::Image = compatible.kind()? else {
+            return None;
+        };
 
         let (_, reg) = self.reg.as_ref()?.iter().next()?;
 
