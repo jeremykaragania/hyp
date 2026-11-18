@@ -12,6 +12,8 @@ mod memory;
 mod mm;
 mod platform;
 mod sync;
+mod vcpu;
+mod vm;
 
 use boot::dtb::parse_fdt;
 use core::panic::PanicInfo;
