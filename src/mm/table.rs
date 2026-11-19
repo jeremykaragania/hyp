@@ -5,6 +5,12 @@ const SZ_4KB: usize = 0x1000;
 
 pub const TABLE_ENTRY_COUNT: usize = 512;
 
+// See `asm/head.S` where we initialize the Memory Attribute Indirection
+// Register. TODO: Use these indexes to initialize the register. Programmatic
+// bitshift.
+const NORMAL_ATTR_INDEX: u64 = 0;
+const DEVICE_ATTR_INDEX: u64 = 1;
+
 pub enum DescriptorKind {
     Invalid,
     Table,
@@ -23,9 +29,16 @@ pub enum Execution {
     NonExecutable,
 }
 
+#[derive(PartialEq, Eq)]
+pub enum MemoryKind {
+    Normal,
+    Device,
+}
+
 pub struct MemoryAttributes {
     pub permissions: AccessPermissions,
     pub execution: Execution,
+    pub kind: MemoryKind,
 }
 
 #[derive(Clone, Copy)]
@@ -66,6 +79,10 @@ impl Descriptor {
 
     pub fn block(addr: u64, level: u8, attrs: &MemoryAttributes) -> Self {
         let kind_bits = { if level == 3 { 0b11 } else { 0b01 } };
+        let attr_index = match attrs.kind {
+            MemoryKind::Normal => NORMAL_ATTR_INDEX,
+            MemoryKind::Device => DEVICE_ATTR_INDEX,
+        };
         // AP[1] honestly seems kind of useless. We have two translation tables
         // for a reason right?
         let permission_bits = ((attrs.permissions == AccessPermissions::ReadOnly) as u64) << 2 | 1;
@@ -77,6 +94,7 @@ impl Descriptor {
                 | execution_bits
                 | permission_bits
                 | 1 << 10
+                | attr_index << 2
                 | kind_bits,
         )
     }

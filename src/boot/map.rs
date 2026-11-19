@@ -1,16 +1,25 @@
 use crate::mm::table::{
-    AccessPermissions, Descriptor, DescriptorKind, Execution, MemoryAttributes, level_entry_size,
-    level_shift,
+    AccessPermissions, Descriptor, DescriptorKind, Execution, MemoryAttributes, MemoryKind,
+    level_entry_size, level_shift,
 };
 use crate::mm::table_alloc::{TABLE_POOL, base_table_ptr};
 
 pub const TEXT_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
     permissions: AccessPermissions::ReadOnly,
     execution: Execution::Executable,
+    kind: MemoryKind::Normal,
 };
+
 pub const DATA_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
     permissions: AccessPermissions::ReadWrite,
     execution: Execution::NonExecutable,
+    kind: MemoryKind::Normal,
+};
+
+pub const DEVICE_MEM_ATTRIBUTES: MemoryAttributes = MemoryAttributes {
+    permissions: AccessPermissions::ReadWrite,
+    execution: Execution::NonExecutable,
+    kind: MemoryKind::Device,
 };
 
 unsafe extern "C" {

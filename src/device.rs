@@ -1,5 +1,5 @@
 use crate::bitmap_words;
-use crate::boot::map::{DATA_MEM_ATTRIBUTES, map_region};
+use crate::boot::map::{DEVICE_MEM_ATTRIBUTES, map_region};
 use crate::drivers::console::CONSOLE;
 use crate::drivers::pl011::Pl011;
 use crate::mm::pool::Pool;
@@ -77,7 +77,7 @@ fn init_device(desc: &DeviceDesc) -> Result<InitializedDevice, ()> {
                     begin,
                     end,
                     begin,
-                    &DATA_MEM_ATTRIBUTES,
+                    &DEVICE_MEM_ATTRIBUTES,
                 );
             }
 

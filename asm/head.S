@@ -17,6 +17,18 @@
   msr tcr_el\level, x0
   isb
 
+  // Initialize Memory Attribute Indirection Register.
+  // For now, we just creat two memory attributes for Normal and device memory.
+  // Attr0 (0b01000100):
+  //    Normal memory, Outer Non-cacheable, Inner Non-cacheable.
+  // Attr1 (0b00000000):
+  //    Device memory, non Gathering, non Re-ordering, non Early Write
+  //    Acknowledgement.
+  // TODO: For Normal memory, we haven't specified caching because we're not
+  // sure what we actually want. We should come back and decide.
+  mov x0, #68
+  msr mair_el\level, x0
+
   // Enable the MMU.
   mrs x0, sctlr_el\level
   orr x0, x0, #1
