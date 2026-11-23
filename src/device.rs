@@ -89,7 +89,8 @@ fn init_device(desc: &DeviceDesc) -> Result<InitializedDevice, ()> {
             return Ok(InitializedDevice::Pl011(pl011));
         }
         DeviceKind::Gic => {
-            let gic = Gic::new(0);
+            // TODO: Initialize properly.
+            let gic = Gic::new(0, 0, None, None);
             return Ok(InitializedDevice::Gic(gic));
         }
     }
