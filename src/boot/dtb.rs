@@ -136,13 +136,23 @@ impl<'a> Default for FdtParseContext<'a> {
     }
 }
 
-#[derive(Clone)]
 // TODO: We don't have a proper notion of Device IDs. But since devices are
 // only created in the context of the platform's device table, we can just use
 // the pool index for now. However, we should have a proper formalization.
+//
+// We store any node that we've turned into a device here. This is because at
+// the end when we have more context, we need to come back here and finish
+// initializing those devices.
+#[derive(Clone)]
 struct NodePathDevice<'a> {
-    node_path: NodePath<'a>,
     device_id: PoolIndex,
+    node_path: NodePath<'a>,
+    // We have to defer the parsing of the interrupts property so we just store
+    // the value for now.
+    interrupts: Option<&'a [u8]>,
+    // Only present if the node for the device has the `interrupt_controller`
+    // property.
+    interrupt_cells: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -150,6 +160,8 @@ struct Node<'a> {
     reg: Option<Reg>,
     compatible: Option<Compatible<'a>>,
     device_type: Option<DeviceType>,
+    interrupts: Option<&'a [u8]>,
+    interrupt_cells: Option<u32>,
 }
 
 #[derive(Clone)]
@@ -213,6 +225,8 @@ impl<'a> Node<'a> {
             reg: None,
             compatible: None,
             device_type: None,
+            interrupts: None,
+            interrupt_cells: None,
         }
     }
 
@@ -304,6 +318,12 @@ impl<'a> Compatible<'a> {
                 "arm,pl011" => {
                     return Some(DeviceKind::Pl011);
                 }
+                // We use the `DeviceKind::Gic` to represent an interrupt
+                // controller. If we see this device, which we should only ever
+                // see one of, then we know that's the interrupt controller.
+                "arm,cortex-a15-gic" => {
+                    return Some(DeviceKind::Gic);
+                }
                 _ => {}
             }
         }
@@ -376,7 +396,7 @@ impl<'a> Devicetree<'a> {
     }
 
     fn update_platform(
-        node: &Node,
+        node: &Node<'a>,
         platform: &mut Platform,
         path: &NodePath<'a>,
         node_path_map: &mut Pool<
@@ -419,9 +439,17 @@ impl<'a> Devicetree<'a> {
                 CompatibleKind::Device => {
                     if let Some(node_device) = node.to_device() {
                         let device_id = platform.devices.insert(node_device).ok_or(())?;
+                        // TODO: Here is where we should store the stuff we need
+                        // to defer processing for for this particular device
+                        // that we've jsut reatedinterrupts After we create a
+                        // device we need to steal all the stuff that we need
+                        // from it for deferred processing. This includes
+                        // interrupt-specific properties.
                         let node_path = NodePathDevice {
-                            node_path: path.clone(),
                             device_id: device_id,
+                            node_path: path.clone(),
+                            interrupts: node.interrupts,
+                            interrupt_cells: node.interrupt_cells,
                         };
                         node_path_map.insert(node_path).ok_or(())?;
                     }
@@ -437,6 +465,8 @@ impl<'a> Devicetree<'a> {
         Ok(())
     }
 
+    // TODO: Rewrite a bunch of this function so we don't need to do so many
+    // passes!
     pub fn resolve_platform(
         &self,
         platform: &mut Platform,
@@ -447,19 +477,49 @@ impl<'a> Devicetree<'a> {
             { bitmap_words!(MAX_PLATFORM_DEVICES) },
         >,
     ) -> Result<(), ()> {
-        let Some(stdout_path) = stdout_path else {
-            return Ok(());
+        // Try to initialize a console device if we have one.
+        if let Some(stdout_path) = stdout_path {
+            for (_, node_path_device) in node_path_map.iter() {
+                if node_path_device.node_path.matches(stdout_path) {
+                    platform.console = Some(node_path_device.device_id);
+                }
+            }
         };
 
-        for (_, node_path_device) in node_path_map.iter() {
-            if node_path_device.node_path.matches(stdout_path) {
-                platform.console = Some(node_path_device.device_id);
+        // Try to initialize the interrupt controller (GIC) if we have one (we
+        // should). NOTE: The `PoolIndex` from the platform devices should
+        // correlate with the `PoolIndex` of the `node_path_map`.
+        if let Some((gic_index, _)) = platform
+            .devices
+            .iter()
+            .find(|(_, d)| d.kind == DeviceKind::Gic)
+        {
+            let gic_node = node_path_map.get(gic_index).unwrap();
+            let interrupt_cells = gic_node.interrupt_cells.unwrap();
 
-                return Ok(());
+            for (node_index, node_path_device) in node_path_map.iter() {
+                if let Some(interrupts) = node_path_device.interrupts {
+                    // We currently only support an ARM GIC as an interrupt
+                    // controller. That means that the DTB `interrupts` property
+                    // should follow this format:
+                    // https://www.kernel.org/doc/Documentation/devicetree/bindings/interrupt-controller/arm%2Cgic.txt
+                    if interrupts.len() != 12 {
+                        return Err(());
+                    }
+
+                    // I mean, we already have this parsing machinery we might
+                    // as well use it even if there's overhead.
+                    let mut stream = FdtStream::new(interrupts, 0);
+
+                    // TODO: Store this stuff somewhere.
+                    let _interrupt_type = stream.parse_u32()?;
+                    let _interrupt_number = stream.parse_u32()?;
+                    let _interrupt_flags = stream.parse_u32()?;
+                }
             }
         }
 
-        Err(())
+        Ok(())
     }
 
     pub fn parse(&self) -> Result<Platform, ()> {
@@ -582,6 +642,15 @@ impl<'a> Devicetree<'a> {
             "stdout-path" => {
                 let path = CStr::from_bytes_until_nul(value).unwrap().to_str().unwrap();
                 *stdout_path = Some(path);
+            }
+            "interrupts" => {
+                context.node.interrupts = Some(value);
+            }
+            "#interrupt-cells" => {
+                // We only care about this property if the node happens to be an
+                // interrupt controller, if it isn't then we drop the node later
+                // on. But if it is, then we store it for later.
+                context.node.interrupt_cells = Some(stream.parse_u32()?);
             }
             &_ => {}
         }

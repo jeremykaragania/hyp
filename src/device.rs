@@ -1,6 +1,7 @@
 use crate::bitmap_words;
 use crate::boot::map::{DEVICE_MEM_ATTRIBUTES, map_region};
 use crate::drivers::console::CONSOLE;
+use crate::drivers::gic::Gic;
 use crate::drivers::pl011::Pl011;
 use crate::mm::pool::Pool;
 use crate::mm::table::Descriptor;
@@ -24,9 +25,10 @@ pub struct MmioRegion {
     pub size: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum DeviceKind {
     Pl011,
+    Gic,
 }
 
 // A device on the platform that the hypervisor supports.
@@ -47,6 +49,7 @@ impl DeviceDesc {
 
 pub enum InitializedDevice {
     Pl011(Pl011),
+    Gic(Gic),
 }
 
 pub fn init_devices() -> Result<(), ()> {
@@ -84,6 +87,10 @@ fn init_device(desc: &DeviceDesc) -> Result<InitializedDevice, ()> {
             let pl011 = Pl011::new(begin);
 
             return Ok(InitializedDevice::Pl011(pl011));
+        }
+        DeviceKind::Gic => {
+            let gic = Gic::new(0);
+            return Ok(InitializedDevice::Gic(gic));
         }
     }
 }

@@ -23,6 +23,7 @@ impl fmt::Write for Console {
 
         match device {
             InitializedDevice::Pl011(pl011) => fmt::Write::write_str(pl011, s),
+            _ => unreachable!(),
         }
     }
 }
