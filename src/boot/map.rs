@@ -1,6 +1,7 @@
+use crate::align::{align_up, align_down};
 use crate::mm::table::{
     AccessPermissions, Descriptor, DescriptorKind, Execution, MemoryAttributes, MemoryKind,
-    level_entry_size, level_shift,
+    level_entry_size, level_shift, SZ_4KB,
 };
 use crate::mm::table_alloc::{TABLE_POOL, base_table_ptr};
 
@@ -90,10 +91,14 @@ unsafe fn map_block(
 pub unsafe fn map_region(
     table: *mut Descriptor,
     mut begin: u64,
-    end: u64,
+    mut end: u64,
     mut pa: u64,
     attrs: &MemoryAttributes,
 ) {
+    // The virtual addresses have to be page-aligned or `map_block()` fails.
+    begin = align_down(begin, SZ_4KB as u64);
+    end = align_up(end, SZ_4KB as u64);
+
     while begin < end {
         let consumed = unsafe { map_block(table, begin, end, pa, attrs) };
         begin += consumed as u64;

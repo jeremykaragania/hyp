@@ -1,7 +1,7 @@
-const SZ_512GB: usize = 0x8000000000;
-const SZ_1GB: usize = 0x40000000;
-const SZ_2MB: usize = 0x200000;
-const SZ_4KB: usize = 0x1000;
+pub const SZ_512GB: usize = 0x8000000000;
+pub const SZ_1GB: usize = 0x40000000;
+pub const SZ_2MB: usize = 0x200000;
+pub const SZ_4KB: usize = 0x1000;
 
 pub const TABLE_ENTRY_COUNT: usize = 512;
 
