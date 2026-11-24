@@ -15,7 +15,6 @@
   */
   mov x0, #16
   msr tcr_el\level, x0
-  isb
 
   // Initialize Memory Attribute Indirection Register.
   // For now, we just creat two memory attributes for Normal and device memory.
@@ -28,6 +27,7 @@
   // sure what we actually want. We should come back and decide.
   mov x0, #68
   msr mair_el\level, x0
+  isb
 
   // Enable the MMU.
   mrs x0, sctlr_el\level
@@ -54,6 +54,7 @@ boot:
 
   bl init_table_alloc
   bl create_init_mapping
+  dsb ish
 
   bl current_el
   cmp x0, #2
