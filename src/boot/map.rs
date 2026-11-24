@@ -1,7 +1,8 @@
-use crate::align::{align_up, align_down};
+use crate::align::{align_down, align_up};
+use crate::mm::barrier::{dsb, isb};
 use crate::mm::table::{
-    AccessPermissions, Descriptor, DescriptorKind, Execution, MemoryAttributes, MemoryKind,
-    level_entry_size, level_shift, SZ_4KB,
+    AccessPermissions, Descriptor, DescriptorKind, Execution, MemoryAttributes, MemoryKind, SZ_4KB,
+    level_entry_size, level_shift,
 };
 use crate::mm::table_alloc::{TABLE_POOL, base_table_ptr};
 
@@ -104,6 +105,15 @@ pub unsafe fn map_region(
         begin += consumed as u64;
         pa += consumed as u64;
     }
+
+    dsb();
+
+    if attrs.execution == Execution::Executable {
+        isb();
+    }
+
+    // NOTE: We don't need to worry about TLB invalidation since we don't
+    // support remapping memory meaning that all mappings are new.
 }
 
 #[unsafe(no_mangle)]
