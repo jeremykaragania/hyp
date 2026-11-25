@@ -1,9 +1,10 @@
 use crate::bitmap_words;
+use crate::image::MAX_IMAGES;
 use crate::mm::pool::Pool;
 use crate::sync::Spinlock;
 use crate::vcpu::VCpu;
 
-const MAX_VMS: usize = 8;
+const MAX_VMS: usize = MAX_IMAGES;
 const MAX_VM_VCPUS: usize = 4;
 
 // This is the only place where we get VMs from.
