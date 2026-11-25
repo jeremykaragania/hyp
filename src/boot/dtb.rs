@@ -2,7 +2,7 @@ use crate::align::align_up;
 use crate::bitmap_words;
 use crate::cpu::{Cpu, CpuId};
 use crate::device::{DeviceDesc, DeviceKind, MAX_MMIO_REGIONS, MmioRegion};
-use crate::image::Image;
+use crate::image::ImageDesc;
 use crate::memory::MemoryRegion;
 use crate::mm::pool::{Pool, PoolIndex};
 use crate::platform::{MAX_PLATFORM_DEVICES, Platform};
@@ -252,7 +252,7 @@ impl<'a> Node<'a> {
         Some(device)
     }
 
-    fn to_image(&self) -> Option<Image> {
+    fn to_image(&self) -> Option<ImageDesc> {
         let compatible = self.compatible?;
 
         let CompatibleKind::Image = compatible.kind()? else {
@@ -261,7 +261,7 @@ impl<'a> Node<'a> {
 
         let (_, reg) = self.reg.as_ref()?.iter().next()?;
 
-        Some(Image {
+        Some(ImageDesc {
             address: reg.address,
             size: reg.length as usize,
         })
