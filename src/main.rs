@@ -18,6 +18,7 @@ mod vm;
 use boot::dtb::parse_fdt;
 use core::panic::PanicInfo;
 use device::init_devices;
+use image::init_images;
 use platform::PLATFORM;
 
 unsafe extern "C" {
@@ -45,6 +46,8 @@ pub extern "C" fn main() {
     if unsafe { current_el() } != 2 {
         panic!("Virtualization is not supported on this platform");
     }
+
+    init_images().unwrap();
 
     loop {}
 }
