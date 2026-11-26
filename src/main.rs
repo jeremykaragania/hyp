@@ -12,6 +12,7 @@ mod memory;
 mod mm;
 mod platform;
 mod sync;
+mod timer;
 mod vcpu;
 mod vm;
 
